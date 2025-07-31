@@ -11,7 +11,7 @@ SEGUNDO: Descargar zeroBrane desde su web:
 
 https://studio.zerobrane.com/download?not-this-time
 
-Una vez descargados e instalados ambos, descargar este proyecto desde github (boton verde de <code> y descargar zip)
+Una vez descargados e instalados ambos, descargar este proyecto desde github (boton verde de code y descargar zip)
 
 Una vez descargado el proyecto arrastrarlo al escritorio o algun lugar comodo, abrir zerobrane y hacer lo siguiente:
 - En la barra de herramientas superior: Proyect --> Lua interpreter --> LÖVE
