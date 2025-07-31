@@ -1,20 +1,26 @@
 local currentDirection = nil
 mover = false
 juegoTerminado = false
+local estela = {}
+local siguienteIndexEstela = 1
+local tiempoEstela = 0
+local intervaloEstela = 0.1
+local yTrail = nil
 
 function love.load()
   
   w0, h0 = love.graphics.getDimensions()
   perro = {}
 
-  tamañoSegmento = 50
+  tamañoObstaculo = 50
+  tamañoPerro = 30
   intervaloMovimiento = 0.1
-  scrollVelocidad = tamañoSegmento / intervaloMovimiento
+  scrollVelocidad = tamañoPerro / intervaloMovimiento
   scrollX = 0
   tamañoMinimo = 100
   historialDirecciones = {}
   
-   xInicial = w0 - tamañoSegmento
+   xInicial = w0 - tamañoPerro
    yInicial = h0 / 2
   
   for i = 0, tamañoMinimo - 1 do
@@ -28,7 +34,7 @@ function love.load()
   obstaculosSprites = {}
   obstaculosSprites.arbol = love.graphics.newImage("sprites/arbol.png")
   
-  obstaculosMaximos = 10
+  obstaculosMaximos = 20
   obstaculosCargados = false
   obstaculosActivos = {}
 
@@ -44,13 +50,25 @@ function love.load()
 
   
   cargarObstaculos(obstaculos)
+  yTrail = math.floor((h0/2)/tamañoPerro) * tamañoPerro
+  local numPuntos = math.floor((w0/2)/tamañoPerro) + 1
+  local y0 = math.floor((h0/2)/tamañoPerro) * tamañoPerro
+  for i = 1, numPuntos do
+    local x0 = (i-1) * tamañoPerro
+    local pasoY = love.math.random(-1,1) * tamañoPerro
+    print(pasoY)
+    y0 = math.max(0, math.min(h0-tamañoPerro, y0 + pasoY))
+    table.insert(estela, {x = x0, y = y0, visited = false})
+  end
+  
 
 end
 
 tiempoAcumulado = tiempoAcumulado or 0
 intervaloMovimiento = 0.1
 tiempoGeneracion = 0
-intervaloGeneracion = 1 
+intervaloGeneracion = 10
+
 
 function love.update(dt)
   
@@ -61,6 +79,16 @@ end
 if juegoTerminado then return end
   
 scrollX = scrollX + scrollVelocidad * dt
+tiempoEstela = tiempoEstela + dt
+
+if tiempoEstela >= intervaloEstela then
+  local xWorld = -scrollX
+  local pasoY = love.math.random(-1,1) * tamañoPerro
+  yTrail = math.max(0, math.min(h0-tamañoPerro, yTrail + pasoY))
+  table.insert(estela, {x = xWorld, y = yTrail, visited = false})
+  tiempoEstela = tiempoEstela - intervaloEstela
+end
+
 
 tiempoAcumulado = tiempoAcumulado + dt
 if currentDirection then
@@ -76,24 +104,45 @@ else
   end
 end
 
+local cabeza = perro[#perro]
+local headScreenX = cabeza.x + scrollX
+local headScreenY = cabeza.y
+local pt = estela[siguienteIndexEstela]
 
+if pt and headScreenX >= pt.x
+  and headScreenX < pt.x + tamañoPerro
+  and headScreenY >= pt.y
+  and headScreenY < pt.y + tamañoPerro then
+  pt.visited = true
+  siguienteIndexEstela = siguienteIndexEstela + 1 
+end
 
-
+for i = #estela, 1, -1 do
+  if estela[i].x + scrollX < -tamañoPerro then
+    table.remove(estela, i)
+    if i < siguienteIndexEstela then
+      siguienteIndexEstela = siguienteIndexEstela - 1
+    end
+  end
+  
 tiempoGeneracion = tiempoGeneracion + dt
 if tiempoGeneracion >= intervaloGeneracion then
-  generarObstaculo()
-  tiempoGeneracion = 0
+  if #obstaculosActivos < obstaculosMaximos then
+    generarObstaculo()
+  end
+  tiempoGeneracion = tiempoGeneracion - intervaloGeneracion
 end
 
 end
 
+end
 
 
 function love.draw()
 
   love.graphics.setColor(0,1,0)
   for i, segmento in ipairs(perro) do
-    love.graphics.rectangle("fill", segmento.x + scrollX, segmento.y, tamañoSegmento, tamañoSegmento)
+    love.graphics.rectangle("fill", segmento.x + scrollX, segmento.y, tamañoPerro, tamañoPerro)
   end
   love.graphics.setColor(1,1,1)
   
@@ -120,6 +169,15 @@ function love.draw()
       table.remove(obstaculosActivos, i)
     end
   end
+ 
+ love.graphics.setColor(0,0,1,0.5)
+ for i, pt in ipairs(estela) do
+   if not pt.visited then
+     love.graphics.rectangle("fill", pt.x + scrollX, pt.y, tamañoPerro, tamañoPerro)
+   end
+ end
+ love.graphics.setColor(1,1,1,1)
+    
   
   if juegoTerminado then
     love.graphics.setColor(1,0,0)
@@ -127,13 +185,20 @@ function love.draw()
     love.graphics.setColor(1,1,1)
   end
   
+  
+  
+  
+  
+  
 end
 
 function love.keypressed(key)
-  
-if key == "w" or key == "a" or key == "s" or key == "d" then
-  currentDirection = key
-end
+  if love.keyboard.isDown(key) then
+    if key == "w" or key == "a" or key == "s" or key == "d" then
+    currentDirection = key
+    end
+  end
+
 
 end
 
@@ -179,8 +244,8 @@ function generarObstaculo()
   
   local tipos = {"arbol", "caja"}
   local tipo = tipos[love.math.random(#tipos)]
-  local ancho = tamañoSegmento
-  local alto = tamañoSegmento
+  local ancho = tamañoObstaculo
+  local alto = tamañoObstaculo
   local distanciaFueraPantalla = love.math.random(10,50)
   local x = -scrollX - distanciaFueraPantalla
   local y = love.math.random(0, h0 - alto)
@@ -201,9 +266,9 @@ function detectarColisiones()
       local obstaculoY = obstaculo.y
       local colisiona = 
       segmentoX < obstaculoX + obstaculo.ancho and
-      segmentoX + tamañoSegmento > obstaculoX and
+      segmentoX + tamañoPerro > obstaculoX and
       segmentoY < obstaculoY + obstaculo.alto and
-      segmentoY + tamañoSegmento > obstaculoY
+      segmentoY + tamañoPerro > obstaculoY
       
       if colisiona then
         juegoTerminado = true
@@ -230,11 +295,11 @@ function moverPerroBien(direccion)
   end
   
   if direccion == "w" then
-    nuevaY = nuevaY - tamañoSegmento
+    nuevaY = nuevaY - tamañoPerro
   elseif direccion == "s" then
-    nuevaY = nuevaY + tamañoSegmento
+    nuevaY = nuevaY + tamañoPerro
   elseif direccion == "a" then
-    nuevaX = cabeza.x - tamañoSegmento
+    nuevaX = cabeza.x - tamañoPerro
     local posicionEnPanralla = nuevaX + scrollX
     if posicionEnPanralla < w0 / 4 then
       return
@@ -252,8 +317,8 @@ end
 if nuevaY < 0 then 
   nuevaY = 0 
 end
-if nuevaY > h0 - tamañoSegmento then 
-  nuevaY = h0 - tamañoSegmento 
+if nuevaY > h0 - tamañoPerro then 
+  nuevaY = h0 - tamañoPerro
 end
 
 if nuevaX ~= cabeza.x or nuevaY ~= cabeza.y then
