@@ -11,33 +11,49 @@ local tiempoPowerup = 0
 local intervaloPowerup = 5
 local baseIntervaloMovimiento
 
-local gameState = "playing"
+local gameState = "menu"
+local anguloMinimo = math.rad(-5)
+local anguloMaximo = math.rad(5)
+local anguloTitulo = 0
+local anguloVelocidad = math.rad(30)
 local fadeAlpha = 0
 local fadeSpeed = 2
 local btnTry = {w = 200, h = 50}
+local btnPlay = {w = 200, h = 50}
+local btnExit = {w = 200, h = 50}
 
 function love.load()
   
   w0, h0 = love.graphics.getDimensions()
   btnTry.x = (w0 - btnTry.w)/2
   btnTry.y = h0/2 + 20
+  btnPlay.x = (w0 - btnPlay.w)/2
+  btnPlay.y = h0/2
+  btnExit.x = (w0 - btnExit.w)/2
+  btnExit.y = h0/2 + 70
   
-  gameState = "playing"
   fadeAlpha = 0
-  juegoTerminado = false
   
-  perro = {}
+  
+end
 
+function iniciarJuego() 
+  
   tamañoObstaculo = 50
   tamañoPerro = 30
-  intervaloMovimiento = 0.1
-  scrollVelocidad = tamañoPerro / intervaloMovimiento
-  scrollX = 0
   tamañoMinimo = 100
   historialDirecciones = {}
   
-   xInicial = w0 - tamañoPerro
-   yInicial = h0 / 2
+  juegoTerminado = false
+  scrollX = 0
+  fadeAlpha = 0
+  intervaloMovimiento = 0.1
+
+  juegoTerminado = false
+  
+  perro = {}
+  xInicial = w0 - tamañoPerro
+  yInicial = h0 / 2
   
   for i = 0, tamañoMinimo - 1 do
     table.insert(perro, 1, {
@@ -50,7 +66,7 @@ function love.load()
   obstaculosSprites = {}
   obstaculosSprites.arbol = love.graphics.newImage("sprites/arbol.png")
   
-  obstaculosMaximos = 20
+  obstaculosMaximos = 15
   obstaculosCargados = false
   obstaculosActivos = {}
 
@@ -63,6 +79,7 @@ function love.load()
   
   
   velocidad = 100
+  scrollVelocidad = tamañoPerro / intervaloMovimiento
 
   
   cargarObstaculos(obstaculos)
@@ -78,8 +95,11 @@ function love.load()
   
   baseIntervaloMovimiento = intervaloMovimiento
   
-
 end
+
+
+
+
 
 tiempoAcumulado = tiempoAcumulado or 0
 intervaloMovimiento = 0.1
@@ -88,6 +108,18 @@ intervaloGeneracion = 10
 
 
 function love.update(dt)
+  
+if gameState == "menu" then 
+  anguloTitulo = anguloTitulo + anguloVelocidad * dt
+  if anguloTitulo > anguloMaximo then
+    anguloTitulo = anguloMaximo
+    anguloVelocidad = -anguloVelocidad
+elseif anguloTitulo < anguloMinimo then
+  anguloTitulo = anguloMinimo
+  anguloVelocidad = -anguloVelocidad
+end
+return  
+end
   
 if gameState == "playing" then
   detectarColisiones()
@@ -195,13 +227,36 @@ if tiempoGeneracion >= intervaloGeneracion then
 end
 
 end
-
 end
+
+
 
 
 function love.draw()
 
-  love.graphics.setColor(0,1,0)
+  
+ 
+ if gameState == "menu" then
+  local angulo = anguloTitulo
+ love.graphics.setFont(love.graphics.newFont(48))
+ love.graphics.push()
+  love.graphics.translate(w0/2, h0/4)
+  love.graphics.rotate(angulo)
+  love.graphics.setColor(1,1,1)
+  love.graphics.printf("TITULO DEL JUEGO", -w0/2, -24, w0, "center")
+love.graphics.pop()
+love.graphics.setColor(0.2,0.2,0.8)
+love.graphics.rectangle("fill", btnPlay.x, btnPlay.y, btnPlay.w, btnPlay.h, 8, 8)
+love.graphics.setColor(1,1,1)
+love.graphics.printf("Play", btnPlay.x, btnPlay.y + 12, btnPlay.w, "center")
+love.graphics.setColor(0.8,0.2,0.2)
+love.graphics.rectangle("fill", btnExit.x, btnExit.y, btnExit.w, btnExit.h, 8,8)
+love.graphics.setColor(1,1,1)
+love.graphics.printf("Exit", btnExit.x, btnExit.y + 12, btnExit.w, "center")
+return
+end
+
+love.graphics.setColor(0,1,0)
   for i, segmento in ipairs(perro) do
     love.graphics.rectangle("fill", segmento.x + scrollX, segmento.y, tamañoPerro, tamañoPerro)
   end
@@ -270,10 +325,27 @@ function love.draw()
 end
 
 function love.mousepressed(x, y, button)
+  
+if gameState == "menu" and button == 1 then
+  if x > btnPlay.x and x<= btnPlay.x + btnPlay.w
+  and y >= btnPlay.y and y<=btnPlay.y + btnPlay.h then
+    iniciarJuego()
+    gameState = "playing"
+    return
+  end
+  if x>btnExit.x and x<=btnExit.x + btnExit.w
+  and y >= btnExit.y and y<=btnExit.y + btnExit.h then
+    love.event.quit()
+    return
+  end
+
+end
+
 
 if gameState == "gameover" and button == 1 then
   if x > btnTry.x and x < btnTry.x + btnTry.w and y > btnTry.y and y<= btnTry.y+btnTry.h then
-    love.load()
+    iniciarJuego()
+    gameState = "playing"
   end
 end
 
