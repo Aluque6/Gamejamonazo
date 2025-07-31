@@ -4,9 +4,7 @@ juegoTerminado = false
 
 function love.load()
   
-  
   w0, h0 = love.graphics.getDimensions()
-  
   perro = {}
 
   tamañoSegmento = 50
@@ -101,7 +99,10 @@ function love.draw()
   
   for i, obstaculo in ipairs(obstaculosActivos) do
     if obstaculo.tipo == "arbol" then
-      love.graphics.setColor(0.4,0.7,0.4)
+      local escalaX = obstaculo.ancho / obstaculosSprites.arbol:getWidth()
+      local escalaY = obstaculo.alto / obstaculosSprites.arbol:getHeight()
+      love.graphics.setColor(1,1,1)
+      love.graphics.draw(obstaculosSprites.arbol, obstaculo.x + scrollX, obstaculo.y, 0, escalaX, escalaY)
     elseif obstaculo.tipo == "caja" then
       love.graphics.setColor(0.8,0.6,0.2)
     else
@@ -155,7 +156,6 @@ function cargarObstaculos(obstaculos)
   for tipo, cantidad in pairs(obstaculos) do
     cantidad = math.floor(love.math.random() * 10)
     obstaculos[tipo] =  cantidad
-    print(tipo, cantidad)
   end
 
 end
@@ -183,15 +183,12 @@ function generarObstaculo()
   local alto = tamañoSegmento
   local distanciaFueraPantalla = love.math.random(10,50)
   local x = -scrollX - distanciaFueraPantalla
-  print("posicionObstaculo: ", x)
   local y = love.math.random(0, h0 - alto)
   
   table.insert(obstaculosActivos, {tipo = tipo, x = x, y = y, ancho = ancho, alto = alto,})
     
   
-  
 end
-
 
 
 function detectarColisiones() 
@@ -251,8 +248,6 @@ function moverPerroBien(direccion)
 else
   return
 end
-
-
 
 if nuevaY < 0 then 
   nuevaY = 0 
