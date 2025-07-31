@@ -8,12 +8,24 @@ local intervaloEstela = 0.1
 local yTrail = nil
 local powerups = {}
 local tiempoPowerup = 0
-local intervaloPowerup = 3
+local intervaloPowerup = 5
 local baseIntervaloMovimiento
+
+local gameState = "playing"
+local fadeAlpha = 0
+local fadeSpeed = 2
+local btnTry = {w = 200, h = 50}
 
 function love.load()
   
   w0, h0 = love.graphics.getDimensions()
+  btnTry.x = (w0 - btnTry.w)/2
+  btnTry.y = h0/2 + 20
+  
+  gameState = "playing"
+  fadeAlpha = 0
+  juegoTerminado = false
+  
   perro = {}
 
   tamañoObstaculo = 50
@@ -60,7 +72,6 @@ function love.load()
   for i = 1, numPuntos do
     local x0 = (i-1) * tamañoPerro
     local pasoY = love.math.random(-1,1) * tamañoPerro
-    print(pasoY)
     y0 = math.max(0, math.min(h0-tamañoPerro, y0 + pasoY))
     table.insert(estela, {x = x0, y = y0, visited = false})
   end
@@ -78,11 +89,26 @@ intervaloGeneracion = 10
 
 function love.update(dt)
   
-if not juegoTerminado then
+if gameState == "playing" then
   detectarColisiones()
 end
   
-if juegoTerminado then return end
+if juegoTerminado and gameState == "playing" then
+  gameState = "fadeout"
+end
+
+if gameState == "fadeout" then
+  fadeAlpha = math.min(1, fadeAlpha + fadeSpeed * dt)
+  if fadeAlpha >= 1 then
+    gameState = "gameover"
+  end
+  return
+end
+
+if gameState == "gameover" then
+  return
+end
+
   
 scrollX = scrollX + scrollVelocidad * dt
 
@@ -170,8 +196,6 @@ end
 
 end
 
-print(intervaloMovimiento)
-
 end
 
 
@@ -226,20 +250,36 @@ function love.draw()
  love.graphics.setColor(1,1,1)
  
  
+ if gameState == "fadeout" or gameState == "gameover" then
+   love.graphics.setColor(0,0,0,fadeAlpha)
+   love.graphics.rectangle("fill", 0, 0, w0, h0)
+ end
  
-    
-  
-  if juegoTerminado then
-    love.graphics.setColor(1,0,0)
-    love.graphics.printf("GAMEOVER", 0, h0/2 - 40, w0, "center" )
-    love.graphics.setColor(1,1,1)
+ if gameState == "gameover" then
+   love.graphics.setColor(1,1,1)
+   love.graphics.setFont(love.graphics.newFont(48))
+   love.graphics.printf("GAME OVER", 0, h0/2 - 80, w0, "center")
+   
+   love.graphics.setFont(love.graphics.newFont(24))
+   love.graphics.setColor(0.2,0.2,0.2)
+   love.graphics.rectangle("fill", btnTry.x, btnTry.y, btnTry.w, btnTry.h, 8, 8)
+   love.graphics.setColor(1,1,1)
+   love.graphics.printf("Try Again", btnTry.x, btnTry.y + (btnTry.h-24)/2, btnTry.w, "center")
+ end
+ 
+end
+
+function love.mousepressed(x, y, button)
+
+if gameState == "gameover" and button == 1 then
+  if x > btnTry.x and x < btnTry.x + btnTry.w and y > btnTry.y and y<= btnTry.y+btnTry.h then
+    love.load()
   end
-  
-  
-  
-  
-  
-  
+end
+
+print(button)
+
+
 end
 
 function love.keypressed(key)
