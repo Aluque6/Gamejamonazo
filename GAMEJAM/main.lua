@@ -6,6 +6,10 @@ local siguienteIndexEstela = 1
 local tiempoEstela = 0
 local intervaloEstela = 0.1
 local yTrail = nil
+local powerups = {}
+local tiempoPowerup = 0
+local intervaloPowerup = 3
+local baseIntervaloMovimiento
 
 function love.load()
   
@@ -61,6 +65,8 @@ function love.load()
     table.insert(estela, {x = x0, y = y0, visited = false})
   end
   
+  baseIntervaloMovimiento = intervaloMovimiento
+  
 
 end
 
@@ -79,6 +85,18 @@ end
 if juegoTerminado then return end
   
 scrollX = scrollX + scrollVelocidad * dt
+
+
+tiempoPowerup = tiempoPowerup + dt
+if tiempoPowerup >= intervaloPowerup then
+  local tipos = {"uranio", "tungsteno"}
+  local tipo = tipos[love.math.random(#tipos)]
+  local x0 = -scrollX - tamañoPerro
+  local y0 = love.math.random(0, h0 - tamañoPerro)
+  table.insert(powerups, {tipo = tipo, x = x0, y = y0})
+  tiempoPowerup = tiempoPowerup - intervaloPowerup
+end
+
 tiempoEstela = tiempoEstela + dt
 
 if tiempoEstela >= intervaloEstela then
@@ -109,6 +127,23 @@ local headScreenX = cabeza.x + scrollX
 local headScreenY = cabeza.y
 local pt = estela[siguienteIndexEstela]
 
+for i = #powerups, 1, -1 do
+  local p = powerups[i]
+  if headScreenX < p.x + scrollX + tamañoPerro
+  and headScreenX + tamañoPerro > p.x + scrollX 
+  and headScreenY < p.y + tamañoPerro 
+  and headScreenY + tamañoPerro > p.y then
+    if p.tipo == "uranio" then
+      intervaloMovimiento = math.max(0.01, intervaloMovimiento * 0.8)
+    else
+      intervaloMovimiento = intervaloMovimiento * 1.2
+    end
+    table.remove(powerups, i)
+  end
+end
+
+    
+
 if pt and headScreenX >= pt.x
   and headScreenX < pt.x + tamañoPerro
   and headScreenY >= pt.y
@@ -134,6 +169,8 @@ if tiempoGeneracion >= intervaloGeneracion then
 end
 
 end
+
+print(intervaloMovimiento)
 
 end
 
@@ -177,6 +214,19 @@ function love.draw()
    end
  end
  love.graphics.setColor(1,1,1,1)
+ 
+ for i, p in ipairs(powerups) do
+   if p.tipo == "uranio" then
+     love.graphics.setColor(0,1,0.2)
+   else
+     love.graphics.setColor(0.5,0.5,0.5)
+   end
+   love.graphics.rectangle("fill", p.x+scrollX, p.y, tamañoPerro, tamañoPerro)
+ end
+ love.graphics.setColor(1,1,1)
+ 
+ 
+ 
     
   
   if juegoTerminado then
