@@ -1,19 +1,18 @@
 local currentDirection = nil
 mover = false
+juegoTerminado = false
 
 function love.load()
   
   
   w0, h0 = love.graphics.getDimensions()
   
-  print(w0, h0)
-  
-  scrollX = 0
-  scrollVelocidad = 150
-  
   perro = {}
 
   tamañoSegmento = 50
+  intervaloMovimiento = 0.1
+  scrollVelocidad = tamañoSegmento / intervaloMovimiento
+  scrollX = 0
   tamañoMinimo = 100
   historialDirecciones = {}
   
@@ -33,6 +32,7 @@ function love.load()
   
   obstaculosMaximos = 10
   obstaculosCargados = false
+  obstaculosActivos = {}
 
   obstaculos = {["arbol"] = 0 , ["caja"] = 0}
   
@@ -42,47 +42,89 @@ function love.load()
   posObstaculoX =  100 
   
   
-  velocidad = 500
+  velocidad = 100
+
   
   cargarObstaculos(obstaculos)
-  print(obstaculos["arbol"], obstaculos["caja"])
 
 end
 
 tiempoAcumulado = tiempoAcumulado or 0
 intervaloMovimiento = 0.1
+tiempoGeneracion = 0
+intervaloGeneracion = 1 
 
 function love.update(dt)
   
-  scrollX = scrollX + scrollVelocidad * dt
+if not juegoTerminado then
+  detectarColisiones()
+end
+  
+if juegoTerminado then return end
+  
+scrollX = scrollX + scrollVelocidad * dt
 
+tiempoAcumulado = tiempoAcumulado + dt
 if currentDirection then
   tiempoAcumulado = tiempoAcumulado + dt
   if tiempoAcumulado >= intervaloMovimiento then
-  moverPerroBien()
+  moverPerroBien(currentDirection)
+  tiempoAcumulado = 0
+end
+else
+  if tiempoAcumulado >= intervaloMovimiento then
+  moverPerroBien("a")
   tiempoAcumulado = 0
   end
 end
 
-print(scrollX)
 
 
+
+tiempoGeneracion = tiempoGeneracion + dt
+if tiempoGeneracion >= intervaloGeneracion then
+  generarObstaculo()
+  tiempoGeneracion = 0
 end
 
+end
 
 
 
 function love.draw()
 
-  
   love.graphics.setColor(0,1,0)
   for i, segmento in ipairs(perro) do
     love.graphics.rectangle("fill", segmento.x + scrollX, segmento.y, tamañoSegmento, tamañoSegmento)
   end
   love.graphics.setColor(1,1,1)
   
+  for i, obstaculo in ipairs(obstaculosActivos) do
+    if obstaculo.tipo == "arbol" then
+      love.graphics.setColor(0.4,0.7,0.4)
+    elseif obstaculo.tipo == "caja" then
+      love.graphics.setColor(0.8,0.6,0.2)
+    else
+      love.graphics.setColor(1,0,0)
+    end
+    love.graphics.rectangle("line", obstaculo.x + scrollX, obstaculo.y, obstaculo.ancho, obstaculo.alto)
+  end
+  love.graphics.setColor(1,1,1)
   
+  --ESTO ES PARA LIMPIAR LOS OBSTACULOS QUE YA NO ESTAN EN PANTALLA, TOTALMENTE INNECESARIO PERO ME DA TOC NO HACERLO
   
+  for i = #obstaculosActivos, 1, -1 do
+    local obstaculo = obstaculosActivos[i]
+    if obstaculo.x + scrollX > w0 then
+      table.remove(obstaculosActivos, i)
+    end
+  end
+  
+  if juegoTerminado then
+    love.graphics.setColor(1,0,0)
+    love.graphics.printf("GAMEOVER", 0, h0/2 - 40, w0, "center" )
+    love.graphics.setColor(1,1,1)
+  end
   
 end
 
@@ -90,7 +132,6 @@ function love.keypressed(key)
   
 if key == "w" or key == "a" or key == "s" or key == "d" then
   currentDirection = key
-  mover = true
 end
 
 end
@@ -102,7 +143,6 @@ function love.keyreleased(key)
   end
   
 end
-
 
 
 function cargarObstaculos(obstaculos)
@@ -122,6 +162,8 @@ end
 
 function moverObstaculos(obstaculos, dt)
   
+  
+  
 for tipo, cantidad in pairs(obstaculos) do
   
   
@@ -133,13 +175,56 @@ end
 end
 
 
-function moverPerroBien(dt)
+function generarObstaculo()
+  
+  local tipos = {"arbol", "caja"}
+  local tipo = tipos[love.math.random(#tipos)]
+  local ancho = tamañoSegmento
+  local alto = tamañoSegmento
+  local distanciaFueraPantalla = love.math.random(10,50)
+  local x = -scrollX - distanciaFueraPantalla
+  print("posicionObstaculo: ", x)
+  local y = love.math.random(0, h0 - alto)
+  
+  table.insert(obstaculosActivos, {tipo = tipo, x = x, y = y, ancho = ancho, alto = alto,})
+    
+  
+  
+end
+
+
+
+function detectarColisiones() 
+  
+  for i, segmento in ipairs(perro) do
+    local segmentoX = segmento.x + scrollX
+    local segmentoY = segmento.y
+    for n, obstaculo in ipairs(obstaculosActivos) do
+      local obstaculoX = obstaculo.x + scrollX
+      local obstaculoY = obstaculo.y
+      local colisiona = 
+      segmentoX < obstaculoX + obstaculo.ancho and
+      segmentoX + tamañoSegmento > obstaculoX and
+      segmentoY < obstaculoY + obstaculo.alto and
+      segmentoY + tamañoSegmento > obstaculoY
+      
+      if colisiona then
+        juegoTerminado = true
+        return
+      end
+    end
+  end
+end
+
+
+
+function moverPerroBien(direccion)
   
   local cabeza = perro[#perro]
   local nuevaX, nuevaY = cabeza.x, cabeza.y
   local ultimaDireccion = historialDirecciones[#historialDirecciones]
   
-  if sonDireccionesOpuestas(currentDirection, ultimaDireccion) then
+  if sonDireccionesOpuestas(direccion, ultimaDireccion) then
     if #perro > tamañoMinimo then
       table.remove(perro, #perro)
       table.remove(historialDirecciones, #historialDirecciones)
@@ -147,18 +232,18 @@ function moverPerroBien(dt)
     return
   end
   
-  if currentDirection == "w" then
+  if direccion == "w" then
     nuevaY = nuevaY - tamañoSegmento
-  elseif currentDirection == "s" then
+  elseif direccion == "s" then
     nuevaY = nuevaY + tamañoSegmento
-  elseif currentDirection == "a" then
+  elseif direccion == "a" then
     nuevaX = cabeza.x - tamañoSegmento
     local posicionEnPanralla = nuevaX + scrollX
     if posicionEnPanralla < w0 / 4 then
       return
     end
     
-  elseif currentDirection == "d" then
+  elseif direccion == "d" then
   if #perro > tamañoMinimo then
     table.remove(perro, #perro)
   end
@@ -176,12 +261,10 @@ if nuevaY > h0 - tamañoSegmento then
   nuevaY = h0 - tamañoSegmento 
 end
 
-  if nuevaX ~= cabeza.x or nuevaY ~= cabeza.y then
-    table.insert(perro, {x = nuevaX, y = nuevaY})
-    table.insert(historialDirecciones, currentDirection)
-  end
-  
-  
+if nuevaX ~= cabeza.x or nuevaY ~= cabeza.y then
+  table.insert(perro, {x = nuevaX, y = nuevaY})
+  table.insert(historialDirecciones, direccion)
+end
   
 end
 
