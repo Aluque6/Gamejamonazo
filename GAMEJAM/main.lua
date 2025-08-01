@@ -9,7 +9,7 @@ local offTrailGraceTimer = 0
 local offTrailMax = 5
 local offTrailTimer = offTrailMax
 
-local distanciaCulo = 50000
+local distanciaCulo = 2000
 local distanciaRecorrida = 0
 local tailSpawned = false
 local tailWorldX, tailWorldY
@@ -25,7 +25,17 @@ local rastroSprites = {}
 local rastroAnimTimer = 0
 local rastroAnimInterval = 0.2   
 local rastroFrame = 1
-local rastroAlpha = 0.9          
+local rastroAlpha = 0.9   
+
+local winFrozen = false
+local frozenTotalScrollPx = 0
+local frozenScrollX = 0
+
+local winPhase = nil
+local winMoveTimer = 0
+local winTargetY = 0
+local winTargetX = nil
+local winStopOffsetTiles = 2
 
 
 local currentDirection = nil
@@ -216,6 +226,41 @@ elseif anguloTitulo < anguloMinimo then
 end
 return  
 end
+
+if gameState == "win" then
+  headAnimTimer = headAnimTimer + dt
+  if headAnimTimer >= headAnimInterval then
+    headAnimTimer = headAnimTimer - headAnimInterval
+    headAnimFrame = headAnimFrame % #headSprites + 1
+  end
+  winMoveTimer = winMoveTimer + dt
+  while winMoveTimer >= intervaloMovimiento and winPhase do
+    winMoveTimer = winMoveTimer - intervaloMovimiento
+
+    local cabeza = perro[#perro]
+
+    if winPhase == "toCenterY" then
+      if cabeza.y > winTargetY then
+        moverPerroBien("w")
+      elseif cabeza.y < winTargetY then
+        moverPerroBien("s")
+      else
+        winPhase = "toTailX"
+      end
+
+    elseif winPhase == "toTailX" then
+      if cabeza.x > tailWorldX + 2 * tamañoPerro then
+        moverPerroBien("a")
+      else
+        winPhase = "done"
+      end
+    elseif winPhase == "done" then
+      winPhase = nil
+    end
+  end
+
+  return
+end
   
 if gameState == "playing" then
   
@@ -306,7 +351,7 @@ end
   if distanciaRecorrida >= distanciaCulo and not tailSpawned then
     tailSpawned = true
     tailWorldX = -scrollX
-    tailWorldY = (h0/2) - (tamañoPerro/2)
+    tailWorldY = (h0/2) 
     estelaCentered = false 
     intervaloGeneracion = 100000
 end
@@ -362,7 +407,16 @@ end
 
 
 if tailSpawned and distanciaRecorrida >= distanciaCulo then
-    gameState = "win"
+  gameState = "win"
+  winFrozen = true
+  frozenTotalScrollPx = totalScrollPx
+  frozenScrollX       = scrollX
+  local cabeza = perro[#perro]
+  headPrevX, headPrevY = cabeza.x, cabeza.y
+  winTargetY = math.floor((h0/2) / tamañoPerro) * tamañoPerro
+  winPhase = "toCenterY"
+  winMoveTimer = 0
+  currentDirection = nil
 end
 end
 
@@ -427,9 +481,31 @@ end
 
 function love.draw()
 
-  
- 
+
+local camX = (gameState == "win" and frozenScrollX) or scrollX
+
+
+local tileW   = w0
+local drawTot = (gameState == "win" and frozenTotalScrollPx) or totalScrollPx
+
+local t      = drawTot / tileW
+local base   = math.floor(t)
+local offset = drawTot - base * tileW
+local leftX  = offset - tileW
+local rightX = offset
+
+local idxLeft  = (base       % #bgImages) + 1
+local idxRight = ((base + 1) % #bgImages) + 1
+local imgL, imgR = bgImages[idxLeft], bgImages[idxRight]
+local scaleL = w0 / imgL:getWidth()
+local scaleR = w0 / imgR:getWidth()
+
+love.graphics.draw(imgL, leftX,  0, 0, scaleL, scaleL)
+love.graphics.draw(imgR, rightX, 0, 0, scaleR, scaleR)
+
+
  if gameState == "menu" then
+   love.graphics.clear(1,1,1,1)
   local angulo = anguloTitulo
  love.graphics.setFont(love.graphics.newFont(48))
  love.graphics.push()
@@ -478,7 +554,8 @@ local scale  = tamañoPerro / sprite:getWidth()
 local alpha = math.min(1, tiempoAcumulado / intervaloMovimiento)
 
 -- posición interpolada en MUNDO y luego a PANTALLA
-local headDrawX = lerp(headPrevX, cabeza.x, alpha) + scrollX
+local camX = (gameState == "win" and frozenScrollX) or scrollX
+local headDrawX = lerp(headPrevX, cabeza.x, alpha) + camX
 local headDrawY = lerp(headPrevY, cabeza.y, alpha)
 
 love.graphics.setColor(1,1,1,1)
@@ -487,7 +564,7 @@ love.graphics.draw(sprite, headDrawX, headDrawY, 0, scale, scale)
 
   
   for i, obstaculo in ipairs(obstaculosActivos) do
-  local ox = obstaculo.usaVelFondo and obstaculo.screenX or (obstaculo.x + scrollX)
+  local ox = obstaculo.usaVelFondo and obstaculo.screenX or (obstaculo.x + camX)
 
   if obstaculo.tipo == "arbol" then
     local escalaX = obstaculo.ancho / obstaculosSprites.arbol:getWidth()
@@ -537,7 +614,7 @@ end
    else
      love.graphics.setColor(0.5,0.5,0.5)
    end
-   love.graphics.rectangle("fill", p.x+scrollX, p.y, tamañoPerro, tamañoPerro)
+   love.graphics.rectangle("fill", p.x+camX, p.y, tamañoPerro, tamañoPerro)
  end
  love.graphics.setColor(1,1,1)
  
@@ -580,7 +657,8 @@ if gameState == "playing" and offTrailTimer < offTrailMax then
  if gameState == "win" then
     love.graphics.setColor(0,0,0)
     love.graphics.printf("¡HAS LLEGADO AL FINAL!", 0, h0/2 - 24, w0, "center")
-  end
+    love.graphics.setColor(1,1,1)
+    end
  
 end
 
@@ -639,20 +717,6 @@ function cargarObstaculos(obstaculos)
     cantidad = math.floor(love.math.random() * 10)
     obstaculos[tipo] =  cantidad
   end
-
-end
-
-function moverObstaculos(obstaculos, dt)
-  
-  
-  
-for tipo, cantidad in pairs(obstaculos) do
-  
-  
-  
-  
-end
-
 
 end
 
@@ -723,10 +787,13 @@ function moverPerroBien(direccion)
     nuevaY = nuevaY + tamañoPerro
   elseif direccion == "a" then
     nuevaX = cabeza.x - tamañoPerro
-    local posicionEnPanralla = nuevaX + scrollX
-    if posicionEnPanralla < w0 / 4 then
-      return
+    if gameState ~= "win" then
+      local posicionEnPanralla = nuevaX + scrollX
+      if posicionEnPanralla < w0 / 4 then
+        return
+      end
     end
+    
     
   elseif direccion == "d" then
   if #perro > tamañoMinimo then
@@ -765,7 +832,8 @@ function limpiarSegmentosFueraPantalla()
 
   while #perro > 1 do
     local tail = perro[1]
-    local tailScreenX = tail.x + scrollX
+    local camX = (gameState == "win" and frozenScrollX) or scrollX
+    local tailScreenX = tail.x + camX
     if tailScreenX < -tamañoPerro - margen then
       table.remove(perro, 1)
       if historialDirecciones and #historialDirecciones > 0 then
@@ -838,26 +906,20 @@ function drawCuerpoPerro()
         rot = (v_in_x > 0) and 0 or math.pi
 
       elseif in_v and out_h then
-       
         if v_in_y < 0 then
-       
           img = bodySprites.leaveUp
         else
-      
           img = bodySprites.leaveDown
         end
-       
         rot = (v_out_x > 0) and math.pi or 0
-
-      else
         
+      else
         if math.abs(v_in_x) >= math.abs(v_in_y) then
           img = bodySprites.horiz
         else
           img = bodySprites.vert
         end
       end
-
     else
 
       if next and next.y == curr.y then
@@ -867,7 +929,8 @@ function drawCuerpoPerro()
       end
     end
 
-    local drawX = curr.x + scrollX
+    local camX = (gameState == "win" and frozenScrollX) or scrollX
+    local drawX = curr.x + camX
     local drawY = curr.y
 
     if drawRectFallback or not img then
@@ -884,8 +947,6 @@ function drawCuerpoPerro()
     end
   end
 end
-
-
 
 
 function sonDireccionesOpuestas (dir1, dir2)
