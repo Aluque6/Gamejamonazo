@@ -9,7 +9,7 @@ local offTrailGraceTimer = 0
 local offTrailMax = 5
 local offTrailTimer = offTrailMax
 
-local distanciaCulo = 2000
+local distanciaCulo = 3500
 local distanciaRecorrida = 0
 local tailSpawned = false
 local tailWorldX, tailWorldY
@@ -36,7 +36,7 @@ local winMoveTimer = 0
 local winTargetY = 0
 local winTargetX = nil
 local winStopOffsetTiles = 2
-
+local winHoldTimer = 0
 
 local currentDirection = nil
 mover = false
@@ -253,12 +253,16 @@ if gameState == "win" then
         moverPerroBien("a")
       else
         winPhase = "done"
+        winHoldTimer = 0
       end
-    elseif winPhase == "done" then
-      winPhase = nil
     end
   end
-
+if winPhase == "done" then
+  winHoldTimer = winHoldTimer + dt
+  if winHoldTimer >= 1.5 then
+    gameState = "win_end"
+  end
+end
   return
 end
   
@@ -416,6 +420,7 @@ if tailSpawned and distanciaRecorrida >= distanciaCulo then
   winTargetY = math.floor((h0/2) / tamañoPerro) * tamañoPerro
   winPhase = "toCenterY"
   winMoveTimer = 0
+  winHoldTimer = 0
   currentDirection = nil
 end
 end
@@ -658,7 +663,34 @@ if gameState == "playing" and offTrailTimer < offTrailMax then
     love.graphics.setColor(0,0,0)
     love.graphics.printf("¡HAS LLEGADO AL FINAL!", 0, h0/2 - 24, w0, "center")
     love.graphics.setColor(1,1,1)
-    end
+  end
+  
+  if gameState == "win_end" then
+
+  love.graphics.setColor(1,1,1,1)
+  love.graphics.rectangle("fill", 0, 0, w0, h0)
+
+
+  love.graphics.setColor(0,0,0,1)
+  love.graphics.setFont(love.graphics.newFont(48))
+  love.graphics.printf("¡HAS LLEGADO AL FINAL!", 0, h0*0.3, w0, "center")
+
+  love.graphics.setFont(love.graphics.newFont(24))
+
+  love.graphics.setColor(0.2,0.6,1.0,1)
+  love.graphics.rectangle("fill", btnTry.x, btnTry.y, btnTry.w, btnTry.h, 8, 8)
+  love.graphics.setColor(1,1,1,1)
+  love.graphics.printf("Reintentar", btnTry.x, btnTry.y + (btnTry.h-24)/2, btnTry.w, "center")
+
+  love.graphics.setColor(0.9,0.3,0.3,1)
+  love.graphics.rectangle("fill", btnExit.x, btnExit.y, btnExit.w, btnExit.h, 8, 8)
+  love.graphics.setColor(1,1,1,1)
+  love.graphics.printf("Salir", btnExit.x, btnExit.y + (btnExit.h-24)/2, btnExit.w, "center")
+
+  return
+    
+  end
+  
  
 end
 
@@ -678,6 +710,20 @@ if gameState == "menu" and button == 1 then
   end
 
 end
+
+if gameState == "win_end" and button == 1 then
+  if x > btnTry.x and x < btnTry.x + btnTry.w and y > btnTry.y and y <= btnTry.y + btnTry.h then
+    iniciarJuego()
+    gameState = "playing"
+    return
+  end
+  
+  if x > btnExit.x and x < btnExit.x + btnExit.w and y > btnExit.y and y <= btnExit.y + btnExit.h then
+    love.event.quit()
+    return
+  end
+end
+
 
 
 if gameState == "gameover" and button == 1 then
