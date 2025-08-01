@@ -1,7 +1,8 @@
 
 local bgImage, bgWidth, bgScroll, bgSpeed
 local currentMap = 1
-
+local bgImages = {}
+local totalScrollPx = 0
 
 local offTrailGrace = 1
 local offTrailGraceTimer = 0
@@ -19,6 +20,13 @@ local headSprites = {}
 local headAnimTimer = 0
 local headAnimInterval = 0.1
 local headAnimFrame = 1
+
+local rastroSprites = {}
+local rastroAnimTimer = 0
+local rastroAnimInterval = 0.2   
+local rastroFrame = 1
+local rastroAlpha = 0.9          
+
 
 local currentDirection = nil
 mover = false
@@ -51,20 +59,44 @@ local intervaloMovimiento = baseIntervaloMovimiento
 local tiempoGeneracion = 0
 local intervaloGeneracion = 2
 
+local function lerp(a,b,t) return a + (b-a)*t end
+
+local headPrevX, headPrevY = 0, 0  
+
+
 function love.load()
   
-  bgImage = love.graphics.newImage("sprites/fondos/fondoCiudad1.png")
-  bgWidth = bgImage:getWidth()
-  bgHeight = bgImage:getHeight()
+
+  bgImages = {
+  love.graphics.newImage("sprites/fondos/fondoCiudad1.png"),
+  love.graphics.newImage("sprites/fondos/fondoCiudad2.png"),}
   bgScroll = 0
-  bgSpeed = 500
+  bgSpeed  = 500
+  w0, h0   = love.graphics.getDimensions()
+  bgScale  = w0 / bgImages[1]:getWidth() 
+
+totalScrollPx = 0
+
   w0, h0 = love.graphics.getDimensions()
-  bgScale = w0 / bgWidth
   
   headSprites[1] = love.graphics.newImage("sprites/Pancho/perrito1.png")
   headSprites[2] = love.graphics.newImage("sprites/Pancho/perrito2.png")
   headSprites[3] = love.graphics.newImage("sprites/Pancho/perrito3.png")
   tailSprite = love.graphics.newImage("sprites/Pancho/perrito3.png")
+  
+  
+  bodySprites = {
+    horiz = love.graphics.newImage("sprites/Pancho/cuerpoHorizontal.png"),
+    vert = love.graphics.newImage("sprites/Pancho/cuerpoVertical.png"),
+    leaveDown = love.graphics.newImage("sprites/Pancho/esquinaBajar.png"),
+    leaveUp = love.graphics.newImage("sprites/Pancho/esquinaSubir.png"),
+    startUp = nil,
+    startDown = nil,
+  }
+  
+rastroSprites[1] = love.graphics.newImage("sprites/Pancho/Rastro1.png")
+rastroSprites[2] = love.graphics.newImage("sprites/Pancho/Rastro2.png")
+
   
   w0, h0 = love.graphics.getDimensions()
   btnTry.x = (w0 - btnTry.w)/2
@@ -82,70 +114,74 @@ function love.load()
   
 end
 
-function iniciarJuego() 
-  
-  offTrailTimer = offTrailMax
-  tailSpawned = false
-  estelaCentered = false
-  estelaSpeedPx = bgSpeed * bgScale
-  tamañoObstaculo = 50
-  tamañoPerro = 30
-  tamañoMinimo = 100
-  historialDirecciones = {}
-  
-  juegoTerminado = false
-  scrollX = 0
-  fadeAlpha = 0
+function iniciarJuego()
 
-  juegoTerminado = false
-  
+
+  totalScrollPx = 0
+
+
+  juegoTerminado       = false
+  tailSpawned          = false
+  estelaCentered       = false
+  fadeAlpha            = 0
+  scrollX              = 0
+
+
+  offTrailGraceTimer   = 0
+  offTrailTimer        = offTrailMax
+  tiempoAcumulado      = 0
+  tiempoGeneracion     = 0
+  tiempoPowerup        = 0
+  tiempoEstela         = 0
+  siguienteIndexEstela = 1
+  distanciaRecorrida   = 0
+
+
+  tamañoObstaculo      = 50
+  tamañoPerro          = 30
+  tamañoMinimo         = 100
+  historialDirecciones = {}
+
+
+  scrollVelocidad = tamañoPerro / intervaloMovimiento
+  estelaSpeedPx   = bgSpeed * bgScale  
+
+
   perro = {}
-  xInicial = math.floor((w0 * 0.9) / tamañoPerro) * tamañoPerro
-  yInicial = h0 / 2
-  
+  local xInicial = math.floor((w0 * 0.9) / tamañoPerro) * tamañoPerro
+  local yInicial = h0 / 2
   for i = 0, tamañoMinimo - 1 do
-    table.insert(perro, 1, {
-        x = xInicial,
-        y = yInicial})
+    table.insert(perro, 1, { x = xInicial, y = yInicial })
   end
-    
-  
-  
+
+ 
+  local cabeza0 = perro[#perro]
+  headPrevX, headPrevY = cabeza0.x, cabeza0.y
+
+
   obstaculosSprites = {}
   obstaculosSprites.arbol = love.graphics.newImage("sprites/arbol.png")
-  
-  obstaculosMaximos = 10
-  obstaculosCargados = false
-  obstaculosActivos = {}
+  obstaculosMaximos   = 10
+  obstaculosCargados  = false
+  obstaculosActivos   = {}
+  obstaculos          = { ["arbol"] = 0, ["caja"] = 0 }
+  powerups            = {}
 
-  obstaculos = {["arbol"] = 0 , ["caja"] = 0}
-  
-  coordObstaculos = {}
-  
-  posObstaculoY = 100
-  posObstaculoX =  100 
-  
-  
-  velocidad = 10
-  scrollVelocidad = tamañoPerro / intervaloMovimiento
-
-  
   cargarObstaculos(obstaculos)
-  
-    estela = {}  
+
+
+  estela = {}
   yTrail = math.floor((h0/2)/tamañoPerro) * tamañoPerro
   local numPuntos = math.floor((w0/2)/tamañoPerro) + 1
   local y0 = math.floor((h0/2)/tamañoPerro) * tamañoPerro
   for i = 1, numPuntos do
     local sx = -tamañoPerro - (numPuntos - i) * tamañoPerro
-    local pasoY = love.math.random(-1,1) * tamañoPerro
+    local pasoY = love.math.random(-1, 1) * tamañoPerro
     y0 = math.max(0, math.min(h0 - tamañoPerro, y0 + pasoY))
-    table.insert(estela, {screenX = sx, y = y0, visited = false})
+    table.insert(estela, { screenX = sx, y = y0, visited = false })
   end
-
-  
-  
 end
+
 
 
 function love.update(dt)
@@ -169,8 +205,6 @@ end
     headAnimFrame = headAnimFrame % #headSprites + 1
   end
   
-  
-  
 if gameState == "menu" then 
   anguloTitulo = anguloTitulo + anguloVelocidad * dt
   if anguloTitulo > anguloMaximo then
@@ -186,9 +220,17 @@ end
 if gameState == "playing" then
   
   tiempoAcumulado = tiempoAcumulado + dt
+  totalScrollPx = totalScrollPx + fondoScreenSpeed() * dt
+  rastroAnimTimer = rastroAnimTimer + dt
+
   
   scrollX = scrollX + fondoScreenSpeed() * dt
   bgScroll = bgScroll + bgSpeed * dt
+  
+  if rastroAnimTimer >= rastroAnimInterval then
+  rastroAnimTimer = rastroAnimTimer - rastroAnimInterval
+  rastroFrame = (rastroFrame % 2) + 1
+end
   
 local cabeza = perro[#perro]
 local headScreenX = cabeza.x + scrollX
@@ -196,9 +238,6 @@ if headScreenX > w0 - tamañoPerro then
   scrollX = (w0 - tamañoPerro) - cabeza.x
 end
   
-  if bgScroll >= bgWidth then
-    bgScroll = bgScroll - bgWidth
-  end
   
 for i = #obstaculosActivos, 1, -1 do
   local o = obstaculosActivos[i]
@@ -220,7 +259,6 @@ end
 
 limpiarSegmentosFueraPantalla()
 
-  
 local onTrail = false
 local head = perro[#perro]
 for _, pt in ipairs(estela) do
@@ -412,25 +450,40 @@ return
 end
 
 -- mover el fondo de IZQUIERDA A DERECHA ADRIAN JDOER
-local x = (bgScroll % bgWidth) * bgScale
-love.graphics.draw(bgImage, x - w0, 0, 0, bgScale, bgScale)
-love.graphics.draw(bgImage, x,      0, 0, bgScale, bgScale)
+local tileW = w0                               
+local t      = totalScrollPx / tileW            
+local base   = math.floor(t)                    
+local offset = totalScrollPx - base * tileW     
+local leftX  = offset - tileW
+local rightX = offset
 
+local idxLeft  = (base            % #bgImages) + 1
+local idxRight = ((base + 1)      % #bgImages) + 1
+local imgL, imgR = bgImages[idxLeft], bgImages[idxRight]
+local scaleL = w0 / imgL:getWidth()
+local scaleR = w0 / imgR:getWidth()
 
-for i = 1, #perro-1 do
-  local segmento = perro[i]
-  love.graphics.setColor(0.6,0.3,0,1)
-  love.graphics.rectangle("fill",segmento.x + scrollX, segmento.y, tamañoPerro, tamañoPerro
-  )
-end
+love.graphics.draw(imgL, leftX,  0, 0, scaleL, scaleL)
+love.graphics.draw(imgR, rightX, 0, 0, scaleR, scaleR)
+
+drawCuerpoPerro()
 
     
-    love.graphics.setColor(1,1,1,1)
-  local cabeza = perro[#perro]
-  local sprite = headSprites[headAnimFrame]
-  local scale = tamañoPerro  / sprite:getWidth()
-  
-  love.graphics.draw(sprite, cabeza.x + scrollX, cabeza.y, 0, scale, scale)
+  love.graphics.setColor(1,1,1,1)
+
+local cabeza = perro[#perro]
+local sprite = headSprites[headAnimFrame]
+local scale  = tamañoPerro / sprite:getWidth()
+
+local alpha = math.min(1, tiempoAcumulado / intervaloMovimiento)
+
+-- posición interpolada en MUNDO y luego a PANTALLA
+local headDrawX = lerp(headPrevX, cabeza.x, alpha) + scrollX
+local headDrawY = lerp(headPrevY, cabeza.y, alpha)
+
+love.graphics.setColor(1,1,1,1)
+love.graphics.draw(sprite, headDrawX, headDrawY, 0, scale, scale)
+
 
   
   for i, obstaculo in ipairs(obstaculosActivos) do
@@ -463,15 +516,20 @@ love.graphics.setColor(1,1,1)
   end
 end
 
-  
  
- love.graphics.setColor(0,0,1,0.5)
- for i, pt in ipairs(estela) do
-   if not pt.visited then
-     love.graphics.rectangle("fill", pt.screenX, pt.y, tamañoPerro, tamañoPerro)
-   end
- end
- love.graphics.setColor(1,1,1,1)
+local imgRastro = rastroSprites[rastroFrame]
+if imgRastro then
+  local sx = tamañoPerro / imgRastro:getWidth()
+  local sy = sx
+  love.graphics.setColor(1,1,1, rastroAlpha)
+  for i, pt in ipairs(estela) do
+    if not pt.visited and pt.screenX then
+      love.graphics.draw(imgRastro, pt.screenX, pt.y, 0, sx, sy)
+    end
+  end
+  love.graphics.setColor(1,1,1,1)
+end
+
  
  for i, p in ipairs(powerups) do
    if p.tipo == "uranio" then
@@ -687,10 +745,11 @@ if nuevaY > h0 - tamañoPerro then
 end
 
 if nuevaX ~= cabeza.x or nuevaY ~= cabeza.y then
+  headPrevX, headPrevY = cabeza.x, cabeza.y
   table.insert(perro, {x = nuevaX, y = nuevaY})
   table.insert(historialDirecciones, direccion)
 end
-  
+
 end
 
 function fondoScreenSpeed()
@@ -717,6 +776,116 @@ function limpiarSegmentosFueraPantalla()
     end
   end
 end
+
+
+function sign(n) return (n > 0) and 1 or (n < 0 and -1 or 0) end
+
+function drawPlaceholder(x, y, size)
+  love.graphics.setColor(0.6, 0.3, 0, 1)
+  love.graphics.rectangle("fill", x, y, size, size)
+  love.graphics.setColor(1, 1, 1, 1)
+end
+
+function drawCuerpoPerro()
+  if not perro or #perro < 2 then return end
+
+  for i = 1, #perro - 1 do 
+    local prev = (i > 1) and perro[i-1] or nil
+    local curr = perro[i]
+    local next = perro[i+1] 
+
+    local img, rot = nil, 0
+    local drawRectFallback = false
+
+    if prev and next then
+
+      local v_in_x  = curr.x - prev.x
+      local v_in_y  = curr.y - prev.y
+      local v_out_x = next.x - curr.x
+      local v_out_y = next.y - curr.y
+
+      local in_h  = (v_in_y  == 0)
+      local in_v  = (v_in_x  == 0)
+      local out_h = (v_out_y == 0)
+      local out_v = (v_out_x == 0)
+
+      if (in_h and out_h) then
+
+        img, rot = bodySprites.horiz, 0
+
+      elseif (in_v and out_v) then
+
+        img, rot = bodySprites.vert, 0
+
+      elseif in_h and out_v then
+ 
+        if v_out_y < 0 then
+         
+          if bodySprites.startUp then
+            img = bodySprites.startUp
+          else
+            drawRectFallback = true
+          end
+        else
+      
+          if bodySprites.startDown then
+            img = bodySprites.startDown
+          else
+            drawRectFallback = true
+          end
+        end
+       
+        rot = (v_in_x > 0) and 0 or math.pi
+
+      elseif in_v and out_h then
+       
+        if v_in_y < 0 then
+       
+          img = bodySprites.leaveUp
+        else
+      
+          img = bodySprites.leaveDown
+        end
+       
+        rot = (v_out_x > 0) and math.pi or 0
+
+      else
+        
+        if math.abs(v_in_x) >= math.abs(v_in_y) then
+          img = bodySprites.horiz
+        else
+          img = bodySprites.vert
+        end
+      end
+
+    else
+
+      if next and next.y == curr.y then
+        img = bodySprites.horiz
+      else
+        img = bodySprites.vert
+      end
+    end
+
+    local drawX = curr.x + scrollX
+    local drawY = curr.y
+
+    if drawRectFallback or not img then
+     
+      drawPlaceholder(drawX, drawY, tamañoPerro)
+    else
+
+      local cx = drawX + tamañoPerro/2
+      local cy = drawY + tamañoPerro/2
+      local sx = tamañoPerro / img:getWidth()
+      local sy = sx
+      love.graphics.setColor(1,1,1,1)
+      love.graphics.draw(img, cx, cy, rot, sx, sy, img:getWidth()/2, img:getHeight()/2)
+    end
+  end
+end
+
+
 
 
 function sonDireccionesOpuestas (dir1, dir2)
