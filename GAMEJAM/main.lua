@@ -1,29 +1,14 @@
-local sti = require "librerias/sti"
-local mapDir = "sprites/fondos"
 
-local mapNames = {"fondo1","fondo2","fondo3","fondo4","fondo5","fondo6",}
-
-local mapFiles = {
-  "sprites/fondos/fondo1.lua",
-  "sprites/fondos/fondo2.lua",
-  "sprites/fondos/fondo3.lua",
-  "sprites/fondos/fondo4.lua",
-  "sprites/fondos/fondo5.lua",
-  "sprites/fondos/fondo6.lua",
-}
-
-local maps = {}
-local ordenMapa = {}
+local bgImage, bgWidth, bgScroll, bgSpeed
 local currentMap = 1
-local bgScroll = 0
-local bgWidth = 0
+
 
 local offTrailGrace = 1
 local offTrailGraceTimer = 0
 local offTrailMax = 5
 local offTrailTimer = offTrailMax
 
-local distanciaCulo = 10000
+local distanciaCulo = 2000
 local distanciaRecorrida = 0
 local tailSpawned = false
 local tailWorldX, tailWorldY
@@ -67,10 +52,17 @@ local intervaloGeneracion = 1
 
 function love.load()
   
+  bgImage = love.graphics.newImage("sprites/fondos/fondoCiudad1.png")
+  bgWidth = bgImage:getWidth()
+  bgHeight = bgImage:getHeight()
+  bgScroll = 0
+  bgSpeed = 100
+  w0, h0 = love.graphics.getDimensions()
+  bgScale = w0 / bgWidth
+  
   headSprites[1] = love.graphics.newImage("sprites/Pancho/perrito1.png")
   headSprites[2] = love.graphics.newImage("sprites/Pancho/perrito2.png")
   headSprites[3] = love.graphics.newImage("sprites/Pancho/perrito3.png")
-  
   tailSprite = love.graphics.newImage("sprites/Pancho/perrito3.png")
   
   w0, h0 = love.graphics.getDimensions()
@@ -84,20 +76,6 @@ function love.load()
   fadeAlpha = 0
   
   
-  for i, file in ipairs(mapFiles) do
-  maps[i] = sti(file)      
-  ordenMapa[i] = i
-end
-  
-  for i = #ordenMapa, 2, -1 do
-    local j = love.math.random(i)
-    ordenMapa[i], ordenMapa[j] = ordenMapa[j], ordenMapa[i]
-  end
-  
-  currentMap = 1
-  bgScroll   = 0
-  local m = maps[ordenMapa[currentMap]]
-  bgWidth = m.width * m.tilewidth
   love.graphics.setBackgroundColor(1, 1, 1)
   
   
@@ -165,9 +143,6 @@ function iniciarJuego()
 end
 
 
-
-
-
 function love.update(dt)
   
   
@@ -204,8 +179,14 @@ return
 end
   
 if gameState == "playing" then
+  
   tiempoAcumulado = tiempoAcumulado + dt
+  
   scrollX = scrollX + scrollVelocidad * dt
+  bgScroll = bgScroll + bgSpeed * dt
+  if bgScroll >= bgWidth then
+    bgScroll = bgScroll - bgWidth
+  end
   
 
 local dir = currentDirection or "a"
@@ -270,21 +251,6 @@ end
     estelaCentered = false 
     intervaloGeneracion = 100000
 end
-
-local distToEnd = distanciaCulo - distanciaRecorrida
-    if distToEnd <= estelaTriggerDistancia and not estelaCentered then
-      local last = estela[#estela]
-      local lastScreenX = last.x + scrollX
-      local targetX = w0/2
-      local diff = targetX - lastScreenX
-      local shift = diff * dt * 5
-      for _, pt in ipairs(estela) do
-        pt.x = pt.x + shift
-      end
-      if math.abs(diff) < 1 then
-        estelaCentered = true
-      end
-    end
 
 
 tiempoPowerup = tiempoPowerup + dt
@@ -422,9 +388,15 @@ love.graphics.printf("Exit", btnExit.x, btnExit.y + 12, btnExit.w, "center")
 return
 end
 
-love.graphics.setColor(0.6,0.3,0,1)
+-- mover el fondo de IZQUIERDA A DERECHA ADRIAN JDOER
+local x = (bgScroll % bgWidth) * bgScale
+love.graphics.draw(bgImage, x - w0, 0, 0, bgScale, bgScale)
+love.graphics.draw(bgImage, x,      0, 0, bgScale, bgScale)
+
+
 for i = 1, #perro-1 do
   local segmento = perro[i]
+  love.graphics.setColor(0.6,0.3,0,1)
   love.graphics.rectangle("fill",segmento.x + scrollX, segmento.y, tamañoPerro, tamañoPerro
   )
 end
