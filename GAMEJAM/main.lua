@@ -25,6 +25,13 @@ local obstaculoEscala = {
   arbol          = { w = 1.6, h = 2.2 }, 
   caja           = { w = 1.0, h = 1.0 },
 }
+local obstaculoMovimiento = {
+  cochecitolere  = { kind = "x", speed = 120, amplitude = 260, prob = 0.8 }, 
+  perritomalo    = { kind = "y", speed =  90, amplitude = 180, prob = 0.7 }, 
+  puestoperritos = nil,  
+  arbol          = nil,
+  caja           = nil,
+}
 
 local headSprites = {}
 local headAnimTimer = 0
@@ -328,18 +335,37 @@ local headScreenX = cabeza.x + scrollX
 if headScreenX > w0 - tamañoPerro then
   scrollX = (w0 - tamañoPerro) - cabeza.x
 end
-  
-  
+
+
 for i = #obstaculosActivos, 1, -1 do
   local o = obstaculosActivos[i]
   if o.usaVelFondo then
-    local vx = (o.vx ~= nil) and o.vx or fondoScreenSpeed()
+    local vx = fondoScreenSpeed()
     o.screenX = (o.screenX or -o.ancho) + vx * dt
     if o.screenX > w0 + o.ancho then
       table.remove(obstaculosActivos, i)
     end
   end
 end
+
+  
+
+for i = #obstaculosActivos, 1, -1 do
+  local o = obstaculosActivos[i]
+  if o.movil then
+    if o.kind == "y" and o.vy then
+      o.y = o.y + o.vy * dt
+      if o.y < o.minY then o.y = o.minY; o.vy =  math.abs(o.vy) end
+      if o.y > o.maxY then o.y = o.maxY; o.vy = -math.abs(o.vy) end
+    elseif o.kind == "x" and o.vx then
+      o.xOffset = (o.xOffset or 0) + o.vx * dt
+      if o.xOffset < -o.maxOffset then o.xOffset = -o.maxOffset; o.vx =  math.abs(o.vx) end
+      if o.xOffset >  o.maxOffset then o.xOffset =  o.maxOffset; o.vx = -math.abs(o.vx) end
+    end
+  end
+end
+
+
 
 
 local dir = currentDirection or "a"
@@ -624,7 +650,8 @@ love.graphics.draw(sprite, headDrawX, headDrawY, 0, scale, scale)
   
 for i, obstaculo in ipairs(obstaculosActivos) do
   local camX = (gameState == "win" and frozenScrollX) or scrollX
-  local ox = obstaculo.usaVelFondo and obstaculo.screenX or (obstaculo.x + camX)
+  local ox = (obstaculo.usaVelFondo and obstaculo.screenX or (obstaculo.x + camX)) + (obstaculo.xOffset or 0)
+
 
   local img = obstaculosSprites[obstaculo.tipo]
   if img then
@@ -633,7 +660,6 @@ for i, obstaculo in ipairs(obstaculosActivos) do
     love.graphics.setColor(1,1,1,1)
     love.graphics.draw(img, ox, obstaculo.y, 0, escalaX, escalaY)
   else
-    -- Fallback si no hay sprite (por ejemplo, "caja")
     if obstaculo.tipo == "caja" then
       love.graphics.setColor(0.8,0.6,0.2,1)
     else
@@ -643,7 +669,7 @@ for i, obstaculo in ipairs(obstaculosActivos) do
     love.graphics.setColor(1,1,1,1)
   end
 
-  -- Borde opcional (útil para depurar colisiones)
+  -- HITBOX
   love.graphics.setColor(1,1,1,1)
   love.graphics.rectangle("line", ox, obstaculo.y, obstaculo.ancho, obstaculo.alto)
 end
@@ -652,14 +678,15 @@ end
   
   --ESTO ES PARA LIMPIAR LOS OBSTACULOS QUE YA NO ESTAN EN PANTALLA, TOTALMENTE INNECESARIO PERO ME DA TOC NO HACERLO
   
-  for i = #obstaculosActivos, 1, -1 do
+for i = #obstaculosActivos, 1, -1 do
   local o = obstaculosActivos[i]
-  if not o.usaVelFondo then
+  if not o.usaVelFondo and not o.movil then
     if o.x + scrollX > w0 then
       table.remove(obstaculosActivos, i)
     end
   end
 end
+
 
  
 local imgRastro = rastroSprites[rastroFrame]
@@ -682,13 +709,13 @@ end
   local drawY = p.y
 
   if img then
-    -- Escala uniforme para encajar en el tamaño del “tile” del perro
+
     local sx = tamañoPerro / img:getWidth()
     local sy = tamañoPerro / img:getHeight()
     love.graphics.setColor(1,1,1,1)
     love.graphics.draw(img, drawX, drawY, 0, sx, sy)
   else
-    -- Fallback por si falta la imagen: colores antiguos
+
     if p.tipo == "uranio" then
       love.graphics.setColor(0,1,0.2,1)
     else
@@ -828,28 +855,57 @@ function cargarObstaculos(obstaculos)
 
 end
 
-
 function generarObstaculo()
 
   local tiposDisponibles = {}
   for tipo, _ in pairs(obstaculosSprites) do
     table.insert(tiposDisponibles, tipo)
   end
-
   local tipo = (#tiposDisponibles > 0) and tiposDisponibles[love.math.random(#tiposDisponibles)] or "caja"
 
-  local esc = obstaculoEscala[tipo] or { w = 1, h = 1 }
-  local anchoBase = tamañoObstaculo
-  local altoBase  = tamañoObstaculo
-  local ancho = math.floor(anchoBase * esc.w + 0.5)
-  local alto  = math.floor(altoBase  * esc.h + 0.5)
+  local esc = obstaculoEscala and obstaculoEscala[tipo] or { w = 1, h = 1 }
+  local ancho = math.floor(tamañoObstaculo * (esc.w or 1) + 0.5)
+  local alto  = math.floor(tamañoObstaculo * (esc.h or 1) + 0.5)
+
+
+  local movConf   = obstaculoMovimiento[tipo]
+  local tendraMov = movConf and (love.math.random() < (movConf.prob or 1.0)) or false
+
 
   local distanciaFueraPantalla = love.math.random(10, 50)
-
   local yMax = math.max(0, h0 - alto)
   local yRand = love.math.random(0, yMax)
   local y = math.floor(yRand / tamañoPerro) * tamañoPerro
   if y > yMax then y = yMax end
+
+  if tendraMov then
+
+    local o = {
+      tipo = tipo,
+      y = y,
+      ancho = ancho,
+      alto  = alto,
+      usaVelFondo = true,                              
+      screenX = -ancho - distanciaFueraPantalla,       
+      movil = true,
+      kind  = movConf.kind,
+    }
+
+    if movConf.kind == "y" then
+      local half = (movConf.amplitude or 160) / 2
+      o.minY = math.max(0, y - half)
+      o.maxY = math.min(h0 - alto, y + half)
+      if o.minY > o.maxY then o.minY, o.maxY = o.maxY, o.minY end
+      o.vy = (movConf.speed or 90) * (love.math.random() < 0.5 and -1 or 1)
+    elseif movConf.kind == "x" then
+      o.xOffset   = 0
+      o.maxOffset = (movConf.amplitude or 200) / 2
+      o.vx = (movConf.speed or 120) * (love.math.random() < 0.5 and -1 or 1)
+    end
+
+    table.insert(obstaculosActivos, o)
+    return
+  end
 
   table.insert(obstaculosActivos, {
     tipo = tipo,
@@ -858,31 +914,36 @@ function generarObstaculo()
     alto  = alto,
     usaVelFondo = true,
     screenX = -ancho - distanciaFueraPantalla,
-    vx = nil
+    vx = nil,
   })
 end
 
 
+
+
 function detectarColisiones() 
-  for _, segmento in ipairs(perro) do
+  for i, segmento in ipairs(perro) do
     local segmentoX = segmento.x + scrollX
     local segmentoY = segmento.y
     if segmentoX + tamañoPerro >= 0 and segmentoX <= w0 then
-      for _, obstaculo in ipairs(obstaculosActivos) do
-        local obstaculoX = obstaculo.usaVelFondo and (obstaculo.screenX or -math.huge) or (obstaculo.x + scrollX) 
-        local obstaculoY = obstaculo.y
-        local colisiona =
-        segmentoX < obstaculoX + obstaculo.ancho and
-        segmentoX + tamañoPerro > obstaculoX and
-        segmentoY < obstaculoY + obstaculo.alto and
-        segmentoY + tamañoPerro > obstaculoY
-        if colisiona then
-          juegoTerminado = true
-          return
-        end
-      end
+      for i, obstaculo in ipairs(obstaculosActivos) do
+      local obstaculoXBase = obstaculo.usaVelFondo and (obstaculo.screenX or -math.huge) or (obstaculo.x + scrollX)
+local obstaculoX = obstaculoXBase + (obstaculo.xOffset or 0)
+local obstaculoY = obstaculo.y
+
+local colisiona =
+  segmentoX < obstaculoX + obstaculo.ancho and
+  segmentoX + tamañoPerro > obstaculoX and
+  segmentoY < obstaculoY + obstaculo.alto and
+  segmentoY + tamañoPerro > obstaculoY
+
+  if colisiona then
+    juegoTerminado = true
+    return
     end
   end
+end
+end
 end
 
 
