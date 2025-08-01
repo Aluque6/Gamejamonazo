@@ -41,7 +41,7 @@ local powerups = {}
 local tiempoPowerup = 0
 local intervaloPowerup = 5
 local intervaloMovimiento 
-local baseIntervaloMovimiento = 0.15
+local baseIntervaloMovimiento = 0.25
 local velocidad = 200
 
 local gameState = "menu"
@@ -138,7 +138,7 @@ function iniciarJuego()
 
 
   tamañoObstaculo      = 50
-  tamañoPerro          = 30
+  tamañoPerro          = 50
   tamañoMinimo         = 100
   historialDirecciones = {}
 
