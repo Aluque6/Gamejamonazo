@@ -151,6 +151,9 @@ function iniciarJuego()
   tamañoPerro          = 50
   tamañoMinimo         = 100
   historialDirecciones = {}
+  
+  intervaloGeneracion = 2
+  intervaloPowerup = 5
 
 
   scrollVelocidad = tamañoPerro / intervaloMovimiento
@@ -715,15 +718,8 @@ if gameState == "win_end" and button == 1 then
   if x > btnTry.x and x < btnTry.x + btnTry.w and y > btnTry.y and y <= btnTry.y + btnTry.h then
     iniciarJuego()
     gameState = "playing"
-    return
-  end
-  
-  if x > btnExit.x and x < btnExit.x + btnExit.w and y > btnExit.y and y <= btnExit.y + btnExit.h then
-    love.event.quit()
-    return
   end
 end
-
 
 
 if gameState == "gameover" and button == 1 then
