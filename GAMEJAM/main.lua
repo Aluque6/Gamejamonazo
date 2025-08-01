@@ -8,7 +8,7 @@ local offTrailGraceTimer = 0
 local offTrailMax = 5
 local offTrailTimer = offTrailMax
 
-local distanciaCulo = 2000
+local distanciaCulo = 50000
 local distanciaRecorrida = 0
 local tailSpawned = false
 local tailWorldX, tailWorldY
@@ -32,7 +32,7 @@ local powerups = {}
 local tiempoPowerup = 0
 local intervaloPowerup = 5
 local intervaloMovimiento 
-local baseIntervaloMovimiento = 0.2
+local baseIntervaloMovimiento = 0.4
 local velocidad = 200
 
 local gameState = "menu"
@@ -48,7 +48,7 @@ local btnExit = {w = 200, h = 50}
 local tiempoAcumulado = tiempoAcumulado or 0
 local intervaloMovimiento = baseIntervaloMovimiento
 local tiempoGeneracion = 0
-local intervaloGeneracion = 1
+local intervaloGeneracion = 0.5
 
 function love.load()
   
@@ -237,13 +237,6 @@ end
  end
  
   
-  if bgScroll >= bgWidth then
-    bgScroll = bgScroll - bgWidth
-    currentMap = currentMap % #maps + 1
-    local m = maps[ordenMapa[currentMap]]
-    bgWidth = m.width * m.tilewidth
-  end
-  
   if distanciaRecorrida >= distanciaCulo and not tailSpawned then
     tailSpawned = true
     tailWorldX = -scrollX
@@ -348,7 +341,6 @@ if pt and headScreenX >= pt.x
   pt.visited = true
   siguienteIndexEstela = siguienteIndexEstela + 1 
 end
-
 
   
 tiempoGeneracion = tiempoGeneracion + dt
