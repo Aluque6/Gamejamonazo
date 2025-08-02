@@ -42,13 +42,21 @@ local obstaculoEscala = {
   perritomalo    = { w = 1.3, h = 1.3 }, 
   arbol          = { w = 1.6, h = 2.2 }, 
   caja           = { w = 1.0, h = 1.0 },
+  ositoobstaculo = { w = 2.5, h = 2.5 },
+  laguitoobstaculo = { w = 3.0, h = 2.5 },
 }
 local obstaculoMovimiento = {
   cochecitolere  = { kind = "x", speed = 120, amplitude = 260, prob = 0.8 }, 
   perritomalo    = { kind = "y", speed =  90, amplitude = 180, prob = 0.7 }, 
+  ositoobstaculo = {kind ="y", speed = 50, amplitude = 200, prob = 0.5},
+  laguitoobstaculo = nil,
   puestoperritos = nil,  
   arbol          = nil,
   caja           = nil,
+}
+local obstaculosPorZona = {
+  ciudad = { "cochecitolere", "puestoperritos", "perritomalo" },
+  bosque = { "arbol", "ositoobstaculo", "laguitoobstaculo" },
 }
 
 local headSprites = {}
@@ -136,6 +144,28 @@ function seqIndex(n)
   end
 end
 
+function zonaDeIndice(idx)
+  return (idx == 1) and "ciudad" or "bosque"
+end
+
+function zonaDeSpawn()
+  local iw, ih = bgImages[1]:getDimensions()
+  local tileW  = iw * bgScale
+  local base   = math.floor(((gameState == "win" and frozenTotalScrollPx) or totalScrollPx) / tileW)
+  local iLeft  = (base - 1) % 10         -- contador 0..9 del tile ENTRANTE
+  local idx
+  if iLeft < 4 then
+    idx = 1
+  elseif iLeft < 6 then
+    idx = (iLeft == 4) and 1 or 2
+  else
+    idx = 2
+  end
+  return zonaDeIndice(seqIndex(seqCounter + 1))               
+end
+
+
+
 
 
 
@@ -189,10 +219,10 @@ obstaculosSprites.arbol = love.graphics.newImage("sprites/arbol.png")
 obstaculosSprites.puestoperritos = love.graphics.newImage("sprites/puestoperritos.png")
 obstaculosSprites.perritomalo = love.graphics.newImage("sprites/perritomalo.png")
 obstaculosSprites.cochecitolere = love.graphics.newImage("sprites/cochecitolere.png")
+obstaculosSprites.ositoobstaculo   = love.graphics.newImage("sprites/ositoobstaculo.png")
+obstaculosSprites.laguitoobstaculo = love.graphics.newImage("sprites/laguitoobstaculo.png")
 
 
-
-  
   w0, h0 = love.graphics.getDimensions()
   btnTry.x = (w0 - btnTry.w)/2
   btnTry.y = h0/2 + 20
@@ -438,6 +468,14 @@ local dir = currentDirection or "a"
 if dir == "d" and estaEnBordeDerecho() then
   dir = nil 
 end
+
+if dir == "w" and estaEnBordeSuperior() then
+  dir = nil
+end
+if dir == "s" and estaEnBordeInferior() then
+  dir = nil
+end
+
 
 if tiempoAcumulado >= intervaloMovimiento then
   moverPerroBien(dir or "a")
@@ -960,21 +998,16 @@ function cargarObstaculos(obstaculos)
 end
 
 function generarObstaculo()
-
-  local tiposDisponibles = {}
-  for tipo, _ in pairs(obstaculosSprites) do
-    table.insert(tiposDisponibles, tipo)
-  end
-  local tipo = (#tiposDisponibles > 0) and tiposDisponibles[love.math.random(#tiposDisponibles)] or "caja"
-
-  local esc = obstaculoEscala and obstaculoEscala[tipo] or { w = 1, h = 1 }
+  local zona = zonaDeSpawn()
+  local listaZona = obstaculosPorZona[zona]
+  if not listaZona or #listaZona == 0 then return end
+  local tipo = listaZona[love.math.random(#listaZona)]
+  local esc = obstaculoEscala[tipo] or { w = 1, h = 1 }
   local ancho = math.floor(tamañoObstaculo * (esc.w or 1) + 0.5)
   local alto  = math.floor(tamañoObstaculo * (esc.h or 1) + 0.5)
 
-
   local movConf   = obstaculoMovimiento[tipo]
   local tendraMov = movConf and (love.math.random() < (movConf.prob or 1.0)) or false
-
 
   local distanciaFueraPantalla = love.math.random(10, 50)
   local yMax = math.max(0, h0 - alto)
@@ -983,14 +1016,14 @@ function generarObstaculo()
   if y > yMax then y = yMax end
 
   if tendraMov then
-
     local o = {
       tipo = tipo,
+      zona = zona,
       y = y,
       ancho = ancho,
       alto  = alto,
-      usaVelFondo = true,                              
-      screenX = -ancho - distanciaFueraPantalla,       
+      usaVelFondo = true,
+      screenX = -ancho - distanciaFueraPantalla,
       movil = true,
       kind  = movConf.kind,
     }
@@ -1013,6 +1046,7 @@ function generarObstaculo()
 
   table.insert(obstaculosActivos, {
     tipo = tipo,
+    zona = zona,
     y = y,
     ancho = ancho,
     alto  = alto,
@@ -1248,6 +1282,16 @@ function estaEnBordeDerecho()
   print(w0- tamañoPerro - 0.5)
   print (w0)
   return (cabeza.x + scrollX) >= (w0 - 2* tamañoPerro)
+end
+
+function estaEnBordeSuperior()
+  local cabeza = perro[#perro]
+  return cabeza.y <= 0
+end
+
+function estaEnBordeInferior()
+  local cabeza = perro[#perro]
+  return cabeza.y >= h0 - tamañoPerro
 end
 
 
