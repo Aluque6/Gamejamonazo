@@ -4,6 +4,11 @@ local currentMap = 1
 local bgImages = {}
 local totalScrollPx = 0
 
+local backstepActive = false
+local backTargetX, backTargetY = nil, nil
+local backRemoveIndex = nil
+
+
 local offTrailGrace = 1
 local offTrailGraceTimer = 0
 local offTrailMax = 5
@@ -110,29 +115,29 @@ totalScrollPx = 0
 
   w0, h0 = love.graphics.getDimensions()
   
-  headSprites[1] = love.graphics.newImage("sprites/Pancho/perrito1.png")
-  headSprites[2] = love.graphics.newImage("sprites/Pancho/perrito2.png")
-  headSprites[3] = love.graphics.newImage("sprites/Pancho/perrito3.png")
+  headSprites[1] = love.graphics.newImage("sprites/pancho/perrito1.png")
+  headSprites[2] = love.graphics.newImage("sprites/pancho/perrito2.png")
+  headSprites[3] = love.graphics.newImage("sprites/pancho/perrito3.png")
   
-  tailSprites[1] = love.graphics.newImage("sprites/Pancho/culete1.png")
-  tailSprites[2] = love.graphics.newImage("sprites/Pancho/culete2.png")
-  tailSprites[3] = love.graphics.newImage("sprites/Pancho/culete3.png")
+  tailSprites[1] = love.graphics.newImage("sprites/pancho/culete1.png")
+  tailSprites[2] = love.graphics.newImage("sprites/pancho/culete2.png")
+  tailSprites[3] = love.graphics.newImage("sprites/pancho/culete3.png")
   
   
   bodySprites = {
-    horiz = love.graphics.newImage("sprites/Pancho/cuerpoHorizontal.png"),
-    vert = love.graphics.newImage("sprites/Pancho/cuerpoVertical.png"),
-    leaveDown = love.graphics.newImage("sprites/Pancho/esquinaBajar.png"),
-    leaveUp = love.graphics.newImage("sprites/Pancho/esquinaSubir.png"),
-    startUp = love.graphics.newImage("sprites/Pancho/torsosube.png"),
-    startDown = love.graphics.newImage("sprites/Pancho/torsobaja.png"),
+    horiz = love.graphics.newImage("sprites/pancho/cuerpoHorizontal.png"),
+    vert = love.graphics.newImage("sprites/pancho/cuerpoVertical.png"),
+    leaveDown = love.graphics.newImage("sprites/pancho/esquinaBajar.png"),
+    leaveUp = love.graphics.newImage("sprites/pancho/esquinaSubir.png"),
+    startUp = love.graphics.newImage("sprites/pancho/torsosube.png"),
+    startDown = love.graphics.newImage("sprites/pancho/torsobaja.png"),
   }
   
-rastroSprites[1] = love.graphics.newImage("sprites/Pancho/Rastro1.png")
-rastroSprites[2] = love.graphics.newImage("sprites/Pancho/Rastro2.png")
+rastroSprites[1] = love.graphics.newImage("sprites/pancho/rastro1.png")
+rastroSprites[2] = love.graphics.newImage("sprites/pancho/rastro2.png")
 
-powerupSprites.uranio = love.graphics.newImage("sprites/Perritodeuranio.png")
-powerupSprites.tungsteno = love.graphics.newImage("sprites/Atungsteno.png")
+powerupSprites.uranio = love.graphics.newImage("sprites/perritodeuranio.png")
+powerupSprites.tungsteno = love.graphics.newImage("sprites/atungsteno.png")
 
 obstaculosSprites.arbol = love.graphics.newImage("sprites/arbol.png")
 obstaculosSprites.puestoperritos = love.graphics.newImage("sprites/puestoperritos.png")
@@ -182,6 +187,8 @@ function iniciarJuego()
 
   tailAnimTimer = 0
   tailAnimFrame = 1
+  baseIntervaloMovimiento = 0.2
+  intervaloMovimiento = baseIntervaloMovimiento
 
   tamañoObstaculo      = 50
   tamañoPerro          = 50
@@ -333,7 +340,7 @@ end
 local cabeza = perro[#perro]
 local headScreenX = cabeza.x + scrollX
 if headScreenX > w0 - tamañoPerro then
-  scrollX = (w0 - tamañoPerro) - cabeza.x
+  scrollX = math.min(scrollX, (w0 - tamañoPerro) - cabeza.x)
 end
 
 
@@ -369,10 +376,15 @@ end
 
 
 local dir = currentDirection or "a"
+if dir == "d" and estaEnBordeDerecho() then
+  dir = nil 
+end
+
 if tiempoAcumulado >= intervaloMovimiento then
-  moverPerroBien(dir)
+  moverPerroBien(dir or "a")
   tiempoAcumulado = tiempoAcumulado - intervaloMovimiento
 end
+
 
 limpiarSegmentosFueraPantalla()
 
@@ -433,11 +445,24 @@ tiempoPowerup = tiempoPowerup + dt
 if tiempoPowerup >= intervaloPowerup then
   local tipos = {"uranio", "tungsteno"}
   local tipo = tipos[love.math.random(#tipos)]
-  local x0 = -scrollX - tamañoPerro
+
   local y0 = love.math.random(0, h0 - tamañoPerro)
-  table.insert(powerups, {tipo = tipo, x = x0, y = y0})
+  y0 = math.floor(y0 / tamañoPerro) * tamañoPerro
+
+  local distanciaFueraPantalla = love.math.random(10, 50)
+
+  table.insert(powerups, {
+    tipo = tipo,
+    y = y0,
+    ancho = tamañoPerro,
+    alto  = tamañoPerro,
+    usaVelFondo = true,
+    screenX = -tamañoPerro - distanciaFueraPantalla
+  })
+
   tiempoPowerup = tiempoPowerup - intervaloPowerup
 end
+
 
 
 tiempoEstela = tiempoEstela + dt
@@ -494,18 +519,6 @@ end
 end
 
 tiempoAcumulado = tiempoAcumulado + dt
-if currentDirection then
-  tiempoAcumulado = tiempoAcumulado + dt
-  if tiempoAcumulado >= intervaloMovimiento then
-  moverPerroBien(currentDirection)
-  tiempoAcumulado = 0
-end
-else
-  if tiempoAcumulado >= intervaloMovimiento then
-  moverPerroBien("a")
-  tiempoAcumulado = 0
-  end
-end
 
 local cabeza = perro[#perro]
 local headScreenX = cabeza.x + scrollX
@@ -521,13 +534,29 @@ if pt then
   end
 end
 
+for i = #powerups, 1, -1 do
+  local p = powerups[i]
+  if p.usaVelFondo then
+    p.screenX = (p.screenX or -p.ancho) + fondoScreenSpeed() * dt
+    if p.screenX > w0 + (p.ancho or tamañoPerro) then
+      table.remove(powerups, i)
+    end
+  end
+end
+
+
 
 for i = #powerups, 1, -1 do
   local p = powerups[i]
-  if headScreenX < p.x + scrollX + tamañoPerro
-  and headScreenX + tamañoPerro > p.x + scrollX 
-  and headScreenY < p.y + tamañoPerro 
-  and headScreenY + tamañoPerro > p.y then
+  local pX = p.usaVelFondo and (p.screenX or -math.huge) or (p.x + scrollX)
+  local pY = p.y
+  local pW = p.ancho or tamañoPerro
+  local pH = p.alto  or tamañoPerro
+
+  if headScreenX < pX + pW
+  and headScreenX + tamañoPerro > pX
+  and headScreenY < pY + pH
+  and headScreenY + tamañoPerro > pY then
     if p.tipo == "uranio" then
       intervaloMovimiento = math.max(0.01, intervaloMovimiento * 0.8)
     else
@@ -536,6 +565,7 @@ for i = #powerups, 1, -1 do
     table.remove(powerups, i)
   end
 end
+
 
 
   
@@ -674,8 +704,6 @@ for i, obstaculo in ipairs(obstaculosActivos) do
   love.graphics.rectangle("line", ox, obstaculo.y, obstaculo.ancho, obstaculo.alto)
 end
 
-
-  
   --ESTO ES PARA LIMPIAR LOS OBSTACULOS QUE YA NO ESTAN EN PANTALLA, TOTALMENTE INNECESARIO PERO ME DA TOC NO HACERLO
   
 for i = #obstaculosActivos, 1, -1 do
@@ -703,28 +731,24 @@ if imgRastro then
 end
 
  
- for i, p in ipairs(powerups) do
+for i, p in ipairs(powerups) do
   local img = powerupSprites[p.tipo]
-  local drawX = p.x + ((gameState == "win" and frozenScrollX) or scrollX)
+  local camX = (gameState == "win" and frozenScrollX) or scrollX
+  local drawX = p.usaVelFondo and (p.screenX or -math.huge) or (p.x + camX)
   local drawY = p.y
 
   if img then
-
-    local sx = tamañoPerro / img:getWidth()
-    local sy = tamañoPerro / img:getHeight()
+    local sx = (p.ancho or tamañoPerro) / img:getWidth()
+    local sy = (p.alto  or tamañoPerro) / img:getHeight()
     love.graphics.setColor(1,1,1,1)
     love.graphics.draw(img, drawX, drawY, 0, sx, sy)
   else
-
-    if p.tipo == "uranio" then
-      love.graphics.setColor(0,1,0.2,1)
-    else
-      love.graphics.setColor(0.5,0.5,0.5,1)
-    end
-    love.graphics.rectangle("fill", drawX, drawY, tamañoPerro, tamañoPerro)
+    love.graphics.setColor(0.5,0.5,0.5,1)
+    love.graphics.rectangle("fill", drawX, drawY, p.ancho or tamañoPerro, p.alto or tamañoPerro)
     love.graphics.setColor(1,1,1,1)
   end
 end
+
 
  
   
@@ -947,14 +971,30 @@ end
 end
 
 
-
-
 function moverPerroBien(direccion)
-  
+  if not direccion then return end
+
   local cabeza = perro[#perro]
   local nuevaX, nuevaY = cabeza.x, cabeza.y
   local ultimaDireccion = historialDirecciones[#historialDirecciones]
-  
+  local headScreenX = cabeza.x + scrollX
+
+   if direccion == "d" then
+    if headScreenX >= (w0 - tamañoPerro - 0.5) then
+      return
+    end
+    if #perro > tamañoMinimo then
+      local oldHead = perro[#perro]
+      local newHead = perro[#perro - 1]
+      headPrevX, headPrevY = oldHead.x, oldHead.y
+      table.remove(perro, #perro)
+      if #historialDirecciones > 0 then
+        table.remove(historialDirecciones, #historialDirecciones)
+      end
+    end
+    return
+  end
+
   if sonDireccionesOpuestas(direccion, ultimaDireccion) then
     if #perro > tamañoMinimo then
       table.remove(perro, #perro)
@@ -962,7 +1002,7 @@ function moverPerroBien(direccion)
     end
     return
   end
-  
+
   if direccion == "w" then
     nuevaY = nuevaY - tamañoPerro
   elseif direccion == "s" then
@@ -970,36 +1010,26 @@ function moverPerroBien(direccion)
   elseif direccion == "a" then
     nuevaX = cabeza.x - tamañoPerro
     if gameState ~= "win" then
-      local posicionEnPanralla = nuevaX + scrollX
-      if posicionEnPanralla < w0 / 4 then
+      local posPantalla = nuevaX + scrollX
+      if posPantalla < w0 / 4 then
         return
       end
     end
-    
-    
-  elseif direccion == "d" then
-  if #perro > tamañoMinimo then
-    table.remove(perro, #perro)
+  else
+    return
   end
-  return
-else
-  return
+
+  if nuevaY < 0 then nuevaY = 0 end
+  if nuevaY > h0 - tamañoPerro then nuevaY = h0 - tamañoPerro end
+
+  if nuevaX ~= cabeza.x or nuevaY ~= cabeza.y then
+    headPrevX, headPrevY = cabeza.x, cabeza.y
+    table.insert(perro, { x = nuevaX, y = nuevaY })
+    table.insert(historialDirecciones, direccion)
+  end
 end
 
-if nuevaY < 0 then 
-  nuevaY = 0 
-end
-if nuevaY > h0 - tamañoPerro then 
-  nuevaY = h0 - tamañoPerro
-end
 
-if nuevaX ~= cabeza.x or nuevaY ~= cabeza.y then
-  headPrevX, headPrevY = cabeza.x, cabeza.y
-  table.insert(perro, {x = nuevaX, y = nuevaY})
-  table.insert(historialDirecciones, direccion)
-end
-
-end
 
 function fondoScreenSpeed()
   local extra = (not tailSpawned) and scrollVelocidad or 0
@@ -1127,6 +1157,13 @@ function drawCuerpoPerro()
       love.graphics.draw(img, cx, cy, rot, sx, sy, img:getWidth()/2, img:getHeight()/2)
     end
   end
+end
+
+function estaEnBordeDerecho()
+  local cabeza = perro[#perro]
+  print(w0- tamañoPerro - 0.5)
+  print (w0)
+  return (cabeza.x + scrollX) >= (w0 - 2* tamañoPerro)
 end
 
 
