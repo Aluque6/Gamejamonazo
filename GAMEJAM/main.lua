@@ -3,6 +3,12 @@ local bgImage, bgWidth, bgScroll, bgSpeed
 local currentMap = 1
 local bgImages = {}
 local totalScrollPx = 0
+local BG_REPEAT = 4
+local lastBase = nil
+local seqCounter = 0
+local currIdx = 1
+local nextIdx = 1 
+
 
 local backstepActive = false
 local backTargetX, backTargetY = nil, nil
@@ -21,7 +27,7 @@ local rastroFadeInPerSec  = 2.0
 local gameTime = 0                
 
 
-local distanciaCulo = 3500
+local distanciaCulo = 16000
 local distanciaRecorrida = 0
 local tailSpawned = false
 local tailWorldX, tailWorldY
@@ -107,6 +113,31 @@ local function lerp(a,b,t) return a + (b-a)*t end
 
 local headPrevX, headPrevY = 0, 0  
 
+function recalcBgScale()
+  w0, h0 = love.graphics.getDimensions()
+  local iw, ih = bgImages[1]:getDimensions()
+  bgScale = math.max(w0 / iw, h0 / ih) 
+end
+
+function bgIndexForTile(k)
+  if k < 0 then k = 0 end
+  local group = math.floor(k / BG_REPEAT) 
+  return (group % #bgImages) + 1
+end
+
+function seqIndex(n)
+  local i = n % 10
+  if i < 4 then
+    return 1               
+  elseif i < 6 then
+    return (i == 4) and 1 or 2  
+  else
+    return 2               
+  end
+end
+
+
+
 
 function love.load()
   
@@ -116,14 +147,17 @@ function love.load()
   
 
   bgImages = {
-  love.graphics.newImage("sprites/fondos/fondoCiudad1.png"),
-  love.graphics.newImage("sprites/fondos/fondoCiudad2.png"),}
+  love.graphics.newImage("sprites/fondos/fondocity.png"),
+  love.graphics.newImage("sprites/fondos/fondobosque.png"),}
   bgScroll = 0
   bgSpeed  = 500
-  w0, h0   = love.graphics.getDimensions()
-  bgScale  = w0 / bgImages[1]:getWidth() 
+  recalcBgScale()
+  for i=1,#bgImages do
+    bgImages[i]:setFilter("linear","linear")
+  end
 
-totalScrollPx = 0
+
+  totalScrollPx = 0
 
   w0, h0 = love.graphics.getDimensions()
   
@@ -176,6 +210,14 @@ obstaculosSprites.cochecitolere = love.graphics.newImage("sprites/cochecitolere.
 end
 
 function iniciarJuego()
+
+iw, ih = bgImages[1]:getDimensions()
+tileW  = iw * bgScale
+
+lastBase   = math.floor((totalScrollPx or 0) / tileW)
+seqCounter = 0
+currIdx    = seqIndex(seqCounter)
+nextIdx    = seqIndex(seqCounter + 1)
 
 
   totalScrollPx = 0
@@ -420,19 +462,14 @@ for _, pt in ipairs(estela) do
   end
 end
 
--- Tiempo total de partida
 gameTime = gameTime + dt
 
--- Control de visibilidad del rastro
 if gameTime <= rastroVisibleGrace then
-  -- Durante los primeros 3s siempre visible
   rastroAlpha = 1.0
 else
   if onTrail then
-    -- Reaparece rápido
     rastroAlpha = math.min(1.0, rastroAlpha + rastroFadeInPerSec * dt)
   else
-    -- Se desvanece gradualmente
     rastroAlpha = math.max(0.0, rastroAlpha - rastroFadeOutPerSec * dt)
   end
 end
@@ -638,26 +675,6 @@ function love.draw()
 
 local camX = (gameState == "win" and frozenScrollX) or scrollX
 
-
-local tileW   = w0
-local drawTot = (gameState == "win" and frozenTotalScrollPx) or totalScrollPx
-
-local t      = drawTot / tileW
-local base   = math.floor(t)
-local offset = drawTot - base * tileW
-local leftX  = offset - tileW
-local rightX = offset
-
-local idxLeft  = (base       % #bgImages) + 1
-local idxRight = ((base + 1) % #bgImages) + 1
-local imgL, imgR = bgImages[idxLeft], bgImages[idxRight]
-local scaleL = w0 / imgL:getWidth()
-local scaleR = w0 / imgR:getWidth()
-
-love.graphics.draw(imgL, leftX,  0, 0, scaleL, scaleL)
-love.graphics.draw(imgR, rightX, 0, 0, scaleR, scaleR)
-
-
  if gameState == "menu" then
    love.graphics.clear(1,1,1,1)
   local angulo = anguloTitulo
@@ -680,21 +697,34 @@ return
 end
 
 -- mover el fondo de IZQUIERDA A DERECHA ADRIAN JDOER
-local tileW = w0                               
-local t      = totalScrollPx / tileW            
-local base   = math.floor(t)                    
-local offset = totalScrollPx - base * tileW     
-local leftX  = offset - tileW
+
+local iw, ih = bgImages[1]:getDimensions()
+local tileW  = iw * bgScale
+local tileH  = ih * bgScale
+
+local drawTot = (gameState == "win" and frozenTotalScrollPx) or totalScrollPx
+local base    = math.floor(drawTot / tileW)
+local offset  = drawTot - base * tileW
+
+if lastBase == nil then
+  lastBase = base
+end
+while base > lastBase do
+  currIdx    = nextIdx
+  seqCounter = seqCounter + 1
+  nextIdx    = seqIndex(seqCounter + 1)
+  lastBase   = lastBase + 1
+end
+
 local rightX = offset
+local leftX  = offset - tileW
+local y      = math.floor((h0 - tileH) * 0.5)
 
-local idxLeft  = (base            % #bgImages) + 1
-local idxRight = ((base + 1)      % #bgImages) + 1
-local imgL, imgR = bgImages[idxLeft], bgImages[idxRight]
-local scaleL = w0 / imgL:getWidth()
-local scaleR = w0 / imgR:getWidth()
+-- DIBUJA SIEMPRE PRIMERO EL ACTUAL (derecha) y LUEGO EL ENTRANTE (izquierda)
+love.graphics.setColor(1,1,1,1)
+love.graphics.draw(bgImages[currIdx], rightX, y, 0, bgScale, bgScale)
+love.graphics.draw(bgImages[nextIdx], leftX,  y, 0, bgScale, bgScale)
 
-love.graphics.draw(imgL, leftX,  0, 0, scaleL, scaleL)
-love.graphics.draw(imgR, rightX, 0, 0, scaleR, scaleR)
 
 if tailSpawned and #tailSprites > 0 then
   local camX = (gameState == "win" and frozenScrollX) or scrollX
@@ -719,7 +749,6 @@ local scale  = tamañoPerro / sprite:getWidth()
 
 local alpha = math.min(1, tiempoAcumulado / intervaloMovimiento)
 
--- posición interpolada en MUNDO y luego a PANTALLA
 local camX = (gameState == "win" and frozenScrollX) or scrollX
 local headDrawX = lerp(headPrevX, cabeza.x, alpha) + camX
 local headDrawY = lerp(headPrevY, cabeza.y, alpha)
@@ -755,7 +784,7 @@ for i, obstaculo in ipairs(obstaculosActivos) do
   love.graphics.rectangle("line", ox, obstaculo.y, obstaculo.ancho, obstaculo.alto)
 end
 
-  --ESTO ES PARA LIMPIAR LOS OBSTACULOS QUE YA NO ESTAN EN PANTALLA, TOTALMENTE INNECESARIO PERO ME DA TOC NO HACERLO
+  --ESTO ES PARA LIMPIAR LOS OBSTACULOS QUE YA NO ESTAN EN PANTALLA
   
 for i = #obstaculosActivos, 1, -1 do
   local o = obstaculosActivos[i]
@@ -1014,7 +1043,7 @@ local colisiona =
 
   if colisiona then
     if sounds.colision then
-    sounds.colision:stop()  -- por si estaba sonando
+    sounds.colision:stop()  
     sounds.colision:play()
     end
     juegoTerminado = true
