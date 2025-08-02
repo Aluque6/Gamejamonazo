@@ -8,11 +8,18 @@ local backstepActive = false
 local backTargetX, backTargetY = nil, nil
 local backRemoveIndex = nil
 
+local sounds = {}
 
 local offTrailGrace = 1
 local offTrailGraceTimer = 0
 local offTrailMax = 5
 local offTrailTimer = offTrailMax
+
+local rastroVisibleGrace = 3 
+local rastroFadeOutPerSec = 0.6   
+local rastroFadeInPerSec  = 2.0    
+local gameTime = 0                
+
 
 local distanciaCulo = 3500
 local distanciaRecorrida = 0
@@ -53,6 +60,7 @@ local tailSprites = {}
 local tailAnimTimer = 0
 local tailAnimInterval = 0.1
 local tailAnimFrame = 1
+local rastroWarningActive = false
 
 local winFrozen = false
 local frozenTotalScrollPx = 0
@@ -101,6 +109,10 @@ local headPrevX, headPrevY = 0, 0
 
 
 function love.load()
+  
+  sounds.colision = love.audio.newSource("audio/colision.mp3", "static")
+  sounds.perderrastro = love.audio.newSource("audio/perderrastro.mp3", "static")
+  sounds.perderrastro:setLooping(true)
   
 
   bgImages = {
@@ -167,7 +179,8 @@ function iniciarJuego()
 
 
   totalScrollPx = 0
-
+  gameTime = 0
+  rastroAlpha = 1.0
 
   juegoTerminado       = false
   tailSpawned          = false
@@ -240,6 +253,10 @@ function iniciarJuego()
 end
 
 function love.update(dt)
+  
+if gameState ~= "playing" then
+  sounds.perderrastro:stop()
+end
   
 if gameState == "fadeout" then
   fadeAlpha = math.min(1, fadeAlpha + fadeSpeed * dt)
@@ -403,13 +420,46 @@ for _, pt in ipairs(estela) do
   end
 end
 
+-- Tiempo total de partida
+gameTime = gameTime + dt
+
+-- Control de visibilidad del rastro
+if gameTime <= rastroVisibleGrace then
+  -- Durante los primeros 3s siempre visible
+  rastroAlpha = 1.0
+else
+  if onTrail then
+    -- Reaparece rápido
+    rastroAlpha = math.min(1.0, rastroAlpha + rastroFadeInPerSec * dt)
+  else
+    -- Se desvanece gradualmente
+    rastroAlpha = math.max(0.0, rastroAlpha - rastroFadeOutPerSec * dt)
+  end
+end
+
+
 
 if onTrail then
+
+  if rastroWarningActive then
+    rastroWarningActive = false
+    sounds.perderrastro:stop()
+  end
   offTrailGraceTimer = 0
   offTrailTimer      = offTrailMax
 else
+
   offTrailGraceTimer = offTrailGraceTimer + dt
+
   if offTrailGraceTimer >= offTrailGrace then
+    if not rastroWarningActive then
+      rastroWarningActive = true
+      if sounds.perderrastro then
+        sounds.perderrastro:stop() 
+        sounds.perderrastro:play()
+      end
+    end
+
     offTrailTimer = offTrailTimer - dt
     if offTrailTimer <= 0 then
       juegoTerminado = true
@@ -418,6 +468,7 @@ else
     end
   end
 end
+
     
   detectarColisiones()
   
@@ -962,6 +1013,10 @@ local colisiona =
   segmentoY + tamañoPerro > obstaculoY
 
   if colisiona then
+    if sounds.colision then
+    sounds.colision:stop()  -- por si estaba sonando
+    sounds.colision:play()
+    end
     juegoTerminado = true
     return
     end
