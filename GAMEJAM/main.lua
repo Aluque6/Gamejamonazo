@@ -27,7 +27,7 @@ local rastroFadeInPerSec  = 2.0
 local gameTime = 0                
 
 
-local distanciaCulo = 6000
+local distanciaCulo = 12000
 local distanciaRecorrida = 0
 local tailSpawned = false
 local tailWorldX, tailWorldY
