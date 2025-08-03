@@ -98,7 +98,7 @@ local winTargetX = nil
 local winStopOffsetTiles = 2
 local winHoldTimer = 0
 
-
+local introvideo 
 local endSlides = {}
 local endSlideIndex = 1
 local endSlideTimer = 0
@@ -309,6 +309,8 @@ obstaculosSprites.laguitoobstaculo = love.graphics.newImage("sprites/laguitoobst
   btnTry.x = (w0 - btnTry.w)/2
   btnTry.y = h0/2 + 20
   
+  introVideo = love.graphics.newVideo("ui/videoinicio.ogv")
+  
   fadeAlpha = 0
   
   
@@ -403,6 +405,14 @@ function iniciarJuego()
 end
 
 function love.update(dt)
+  
+  if gameState == "intro" then
+    if not introVideo:isPlaying() then
+      iniciarJuego()
+      gameState = "playing"
+    end
+    return
+  end
   
 if gameState == "paused" then
   return
@@ -798,9 +808,6 @@ for i = #powerups, 1, -1 do
   end
 end
 
-
-
-  
 tiempoGeneracion = tiempoGeneracion + dt
 if tiempoGeneracion >= intervaloGeneracion then
   if #obstaculosActivos < obstaculosMaximos then
@@ -817,6 +824,21 @@ end
 function love.draw()
 
 local camX = (gameState == "win" and frozenScrollX) or scrollX
+
+  if gameState == "intro" then
+    love.graphics.setColor(1,1,1)
+    local vw, vh = introVideo:getWidth(), introVideo:getHeight()
+    love.graphics.draw(
+      introVideo,
+      0, 0, 0,
+      w0 / vw,
+      h0 / vh
+    )
+    return
+  end
+
+
+
 
   if gameState == "gameover" then
     love.graphics.setColor(1,1,1)
@@ -1067,10 +1089,10 @@ end
 function love.mousepressed(x, y, button)
   
 if gameState == "menu" and button == 1 then
-  if x > btnPlay.x and x<= btnPlay.x + btnPlay.w
-  and y >= btnPlay.y and y<=btnPlay.y + btnPlay.h then
-    iniciarJuego()
-    gameState = "playing"
+  if x > btnPlay.x and x <= btnPlay.x + btnPlay.w
+  and y >= btnPlay.y and y <= btnPlay.y + btnPlay.h then
+    introVideo:play()      -- arranca el vídeo
+    gameState = "intro"    -- nuevo estado
     return
   end
   if x>btnExit.x and x<=btnExit.x + btnExit.w
