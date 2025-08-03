@@ -1470,8 +1470,6 @@ end
 
 function estaEnBordeDerecho()
   local cabeza = perro[#perro]
-  print(w0- tamañoPerro - 0.5)
-  print (w0)
   return (cabeza.x + scrollX) >= (w0 - 2* tamañoPerro)
 end
 
