@@ -24,10 +24,20 @@ local offTrailTimer = offTrailMax
 local rastroVisibleGrace = 3 
 local rastroFadeOutPerSec = 0.6   
 local rastroFadeInPerSec  = 2.0    
-local gameTime = 0                
+local gameTime = 0 
+
+btnResume     = { w=0, h=0, scale=1, x=0, y=0 }
+btnPauseExit  = { w=0, h=0, scale=1, x=0, y=0 }
+local pauseBg, resumeImg
+
+local gameoverBg 
+local restartImg
+btnRestart  = { w=0, h=0, scale=1, x=0, y=0 }
+btnGOExit   = { w=0, h=0, scale=1, x=0, y=0 }
 
 
-local distanciaCulo = 12000
+
+local distanciaCulo = 2000
 local distanciaRecorrida = 0
 local tailSpawned = false
 local tailWorldX, tailWorldY
@@ -241,14 +251,63 @@ obstaculosSprites.cochecitolere = love.graphics.newImage("sprites/cochecitolere.
 obstaculosSprites.ositoobstaculo   = love.graphics.newImage("sprites/ositoobstaculo.png")
 obstaculosSprites.laguitoobstaculo = love.graphics.newImage("sprites/laguitoobstaculo.png")
 
+  menuBg   = love.graphics.newImage("ui/mainmenu.png")
+  startImg = love.graphics.newImage("ui/botones/start.png")
+  exitImg  = love.graphics.newImage("ui/botones/exit.png")
 
-  w0, h0 = love.graphics.getDimensions()
+  local buttonScale = 0.5
+
+  btnPlay.scale = buttonScale
+  btnPlay.w     = startImg:getWidth()  * buttonScale
+  btnPlay.h     = startImg:getHeight() * buttonScale
+
+  btnExit.scale = buttonScale
+  btnExit.w     = exitImg:getWidth()   * buttonScale
+  btnExit.h     = exitImg:getHeight()  * buttonScale
+
+  local spacing = 10
+  local totalH = btnPlay.h + spacing + btnExit.h
+
+  btnPlay.x  = (w0 - btnPlay.w) / 2
+  btnExit.x  = (w0 - btnExit.w) / 2
+
+  btnPlay.y  = (h0 - totalH) 
+  btnExit.y  = btnPlay.y + btnPlay.h + spacing
+
+  pauseBg   = love.graphics.newImage("ui/pausa.png")
+  resumeImg = love.graphics.newImage("ui/botones/resume.png")
+  
+  btnResume.scale = buttonScale
+  btnResume.w, btnResume.h = resumeImg:getWidth() * buttonScale, resumeImg:getHeight() * buttonScale
+
+  btnPauseExit.scale = buttonScale
+  btnPauseExit.w, btnPauseExit.h = exitImg:getWidth() * buttonScale, exitImg:getHeight() * buttonScale
+
+  local totalPauseH  = btnResume.h + spacing + btnPauseExit.h
+  btnResume.x = (w0 - btnResume.w + 22) / 2
+  btnPauseExit.x = (w0 - btnPauseExit.w + 22) / 2
+  btnResume.y = (h0 - totalPauseH) / 2
+  btnPauseExit.y = btnResume.y + btnResume.h + spacing
+  
+  gameoverBg = love.graphics.newImage("ui/gameover.png")
+  restartImg = love.graphics.newImage("ui/botones/restart.png")
+
+  btnRestart.scale = buttonScale
+  btnRestart.w = restartImg:getWidth() * buttonScale
+  btnRestart.h = restartImg:getHeight() * buttonScale
+
+  btnGOExit.scale = buttonScale
+  btnGOExit.w = exitImg:getWidth() * buttonScale
+  btnGOExit.h = exitImg:getHeight() * buttonScale
+
+  local totalH = btnRestart.h + spacing + btnGOExit.h
+  btnRestart.x = (w0 - btnRestart.w) / 2
+  btnGOExit.x = (w0 - btnGOExit.w) / 2
+  btnRestart.y = (h0 + totalH) / 2
+  btnGOExit.y = btnRestart.y + btnRestart.h + spacing
+   
   btnTry.x = (w0 - btnTry.w)/2
   btnTry.y = h0/2 + 20
-  btnPlay.x = (w0 - btnPlay.w)/2
-  btnPlay.y = h0/2
-  btnExit.x = (w0 - btnExit.w)/2
-  btnExit.y = h0/2 + 70
   
   fadeAlpha = 0
   
@@ -344,6 +403,10 @@ function iniciarJuego()
 end
 
 function love.update(dt)
+  
+if gameState == "paused" then
+  return
+end
   
 if gameState ~= "playing" then
   sounds.perderrastro:stop()
@@ -444,7 +507,7 @@ if gameState == "ending" then
     endSlideIndex = endSlideIndex + 1
 
     if endSlideIndex > #endSlides then
-      gameState = "win_end"
+      gameState = "gameover"
       return
     end
   end
@@ -753,29 +816,46 @@ end
 
 function love.draw()
 
-
 local camX = (gameState == "win" and frozenScrollX) or scrollX
 
- if gameState == "menu" then
-   love.graphics.clear(1,1,1,1)
-  local angulo = anguloTitulo
- love.graphics.setFont(love.graphics.newFont(48))
- love.graphics.push()
-  love.graphics.translate(w0/2, h0/4)
-  love.graphics.rotate(angulo)
-  love.graphics.setColor(0,0,0)
-  love.graphics.printf("TITULO DEL JUEGO", -w0/2, -24, w0, "center")
-love.graphics.pop()
-love.graphics.setColor(0.2,0.2,0.8)
-love.graphics.rectangle("fill", btnPlay.x, btnPlay.y, btnPlay.w, btnPlay.h, 8, 8)
-love.graphics.setColor(0,0,0)
-love.graphics.printf("Play", btnPlay.x, btnPlay.y + 12, btnPlay.w, "center")
-love.graphics.setColor(0.8,0.2,0.2)
-love.graphics.rectangle("fill", btnExit.x, btnExit.y, btnExit.w, btnExit.h, 8,8)
-love.graphics.setColor(0,0,0)
-love.graphics.printf("Exit", btnExit.x, btnExit.y + 12, btnExit.w, "center")
-return
+  if gameState == "gameover" then
+    love.graphics.setColor(1,1,1)
+    love.graphics.draw(gameoverBg, 0, 0, 0, w0 / gameoverBg:getWidth(), h0 / gameoverBg:getHeight())
+
+    love.graphics.draw(restartImg, btnRestart.x, btnRestart.y, 0, btnRestart.scale, btnRestart.scale)
+
+    love.graphics.draw(exitImg, btnGOExit.x, btnGOExit.y, 0,btnGOExit.scale, btnGOExit.scale)
+    return
+  end
+
+
+if gameState == "paused" then
+  
+  love.graphics.setColor(1,1,1)
+  love.graphics.draw(pauseBg, 0, 0, 0, w0 / pauseBg:getWidth(), h0 / pauseBg:getHeight())
+
+  love.graphics.draw(resumeImg,btnResume.x, btnResume.y, 0, btnResume.scale, btnResume.scale)
+
+  love.graphics.draw(exitImg, btnPauseExit.x, btnPauseExit.y, 0, btnPauseExit.scale, btnPauseExit.scale)
+
+  return
 end
+
+if gameState == "menu" then
+  love.graphics.setColor(1,1,1)
+  love.graphics.draw(menuBg, 0, 0, 0,
+    w0 / menuBg:getWidth(),
+    h0 / menuBg:getHeight()
+  )
+
+  love.graphics.setColor(1,1,1)
+  love.graphics.draw(startImg, btnPlay.x, btnPlay.y, 0, btnPlay.scale, btnPlay.scale)
+  love.graphics.draw(exitImg, btnExit.x, btnExit.y, 0, btnExit.scale, btnExit.scale)
+
+
+  return
+end
+
 
 -- mover el fondo de IZQUIERDA A DERECHA ADRIAN JDOER
 
@@ -953,24 +1033,6 @@ if gameState == "playing" and offTrailTimer < offTrailMax then
    love.graphics.rectangle("fill", 0, 0, w0, h0)
  end
  
- if gameState == "gameover" then
-   love.graphics.setColor(1,1,1)
-   love.graphics.setFont(love.graphics.newFont(48))
-   love.graphics.printf("GAME OVER", 0, h0/2 - 80, w0, "center")
-   
-   love.graphics.setFont(love.graphics.newFont(24))
-   love.graphics.setColor(0.2,0.2,0.2)
-   love.graphics.rectangle("fill", btnTry.x, btnTry.y, btnTry.w, btnTry.h, 8, 8)
-   love.graphics.setColor(1,1,1)
-   love.graphics.printf("Try Again", btnTry.x, btnTry.y + (btnTry.h-24)/2, btnTry.w, "center")
- end
- 
- if gameState == "win" then
-    love.graphics.setColor(0,0,0)
-    love.graphics.printf("¡HAS LLEGADO AL FINAL!", 0, h0/2 - 24, w0, "center")
-    love.graphics.setColor(1,1,1)
-  end
-  
   if gameState == "ending" then
   local curr = endSlides[endSlideIndex]
   local next = endSlides[math.min(endSlideIndex+1, #endSlides)]
@@ -999,34 +1061,6 @@ if gameState == "playing" and offTrailTimer < offTrailMax then
   love.graphics.setColor(1,1,1,1)
   return
 end
-
-  
-  if gameState == "win_end" then
-
-  love.graphics.setColor(1,1,1,1)
-  love.graphics.rectangle("fill", 0, 0, w0, h0)
-
-
-  love.graphics.setColor(0,0,0,1)
-  love.graphics.setFont(love.graphics.newFont(48))
-  love.graphics.printf("¡HAS LLEGADO AL FINAL!", 0, h0*0.3, w0, "center")
-
-  love.graphics.setFont(love.graphics.newFont(24))
-
-  love.graphics.setColor(0.2,0.6,1.0,1)
-  love.graphics.rectangle("fill", btnTry.x, btnTry.y, btnTry.w, btnTry.h, 8, 8)
-  love.graphics.setColor(1,1,1,1)
-  love.graphics.printf("Reintentar", btnTry.x, btnTry.y + (btnTry.h-24)/2, btnTry.w, "center")
-
-  love.graphics.setColor(0.9,0.3,0.3,1)
-  love.graphics.rectangle("fill", btnExit.x, btnExit.y, btnExit.w, btnExit.h, 8, 8)
-  love.graphics.setColor(1,1,1,1)
-  love.graphics.printf("Salir", btnExit.x, btnExit.y + (btnExit.h-24)/2, btnExit.w, "center")
-
-  return
-    
-  end
-  
  
 end
 
@@ -1047,28 +1081,51 @@ if gameState == "menu" and button == 1 then
 
 end
 
-if gameState == "win_end" and button == 1 then
-  if x > btnTry.x and x < btnTry.x + btnTry.w and y > btnTry.y and y <= btnTry.y + btnTry.h then
-    iniciarJuego()
-    gameState = "playing"
-  end
-  if x > btnExit.x and x < btnExit.x + btnExit.w and y > btnExit.y and y <= btnExit.y + btnExit.h then
-  love.event.quit()
-  return
-  end
-end
+  if gameState == "paused" and button == 1 then
+    if x >= btnResume.x
+    and x <= btnResume.x + btnResume.w
+    and y >= btnResume.y
+    and y <= btnResume.y + btnResume.h then
+      gameState = "playing"
+      return
+    end
 
-
-if gameState == "gameover" and button == 1 then
-  if x > btnTry.x and x < btnTry.x + btnTry.w and y > btnTry.y and y<= btnTry.y+btnTry.h then
-    iniciarJuego()
-    gameState = "playing"
+    if x >= btnPauseExit.x
+    and x <= btnPauseExit.x + btnPauseExit.w
+    and y >= btnPauseExit.y
+    and y <= btnPauseExit.y + btnPauseExit.h then
+      love.event.quit()
+      return
+    end
   end
-end
+
+  if gameState == "gameover" and button == 1 then
+    if x >= btnRestart.x and x <= btnRestart.x + btnRestart.w
+    and y >= btnRestart.y and y <= btnRestart.y + btnRestart.h then
+      iniciarJuego()
+      gameState = "playing"
+      return
+    end
+    if x >= btnGOExit.x and x <= btnGOExit.x + btnGOExit.w
+    and y >= btnGOExit.y and y <= btnGOExit.y + btnGOExit.h then
+      love.event.quit()
+      return
+    end
+  end
 
 end
 
 function love.keypressed(key)
+  
+  if key == "escape" then
+    if gameState == "playing" then
+      gameState = "paused"
+    elseif gameState == "paused" then
+      gameState = "playing"
+    end
+    return
+  end
+  
   if love.keyboard.isDown(key) then
     if key == "w" or key == "a" or key == "s" or key == "d" then
     currentDirection = key
